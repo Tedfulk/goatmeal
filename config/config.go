@@ -385,7 +385,7 @@ func (m SystemPromptConfirmModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
             if err := saveSystemPrompt(defaultSystemPrompt); err != nil {
                 fmt.Printf("Error saving default system prompt: %v\n", err)
             }
-            // Instead of quitting, transition to theme confirmation
+            // Transition to theme selection instead of username
             return NewThemeConfirmModel(), nil
         case "y", "Y":
             return NewSystemPromptInputModel(), nil
@@ -474,7 +474,7 @@ func (m SystemPromptModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
                 m.err = err
                 return m, tea.Quit
             }
-            // Transition to theme confirmation instead of quitting
+            // Transition to theme selection instead of username
             return NewThemeConfirmModel(), nil
         }
     }
@@ -553,20 +553,52 @@ const (
     defaultTheme       = "white"
 )
 
-// Define available themes
-type Theme struct {
-    Name        string
-    BorderColor string
-    TextColor   string
-    AccentColor string
+// Update ThemeColors to include a display name
+type ThemeColors struct {
+    Name            string          // Added display name
+    UserBubble      lipgloss.Color
+    AssistantBubble lipgloss.Color
+    Timestamp       lipgloss.Color
+    Border          lipgloss.Color
 }
 
-var availableThemes = []Theme{
-    {Name: "Dracula", BorderColor: "141", TextColor: "253", AccentColor: "141"},      // Purple theme
-    {Name: "Nord", BorderColor: "110", TextColor: "251", AccentColor: "110"},         // Blue-green theme
-    {Name: "Monokai", BorderColor: "197", TextColor: "252", AccentColor: "197"},      // Pink theme
-    {Name: "Cyberpunk", BorderColor: "99", TextColor: "251", AccentColor: "99"},      // Neon blue theme
-    {Name: "Matrix", BorderColor: "46", TextColor: "252", AccentColor: "46"},         // Green theme
+// Consolidate into a single theme definition
+var themeMap = map[string]ThemeColors{
+    "Default": {
+        Name:            "Default",
+        UserBubble:      lipgloss.Color("62"),      // Blue
+        AssistantBubble: lipgloss.Color("63"),      // Purple
+        Timestamp:       lipgloss.Color("241"),     // Gray
+        Border:          lipgloss.Color("240"),     // Dark gray
+    },
+    "Matrix": {
+        Name:            "Matrix",
+        UserBubble:      lipgloss.Color("86"),      // Light green
+        AssistantBubble: lipgloss.Color("22"),      // Dark green
+        Timestamp:       lipgloss.Color("242"),     // Gray
+        Border:          lipgloss.Color("34"),      // Medium green
+    },
+    "Dracula": {
+        Name:            "Dracula",
+        UserBubble:      lipgloss.Color("141"),     // Purple
+        AssistantBubble: lipgloss.Color("61"),      // Light purple
+        Timestamp:       lipgloss.Color("243"),     // Light gray
+        Border:          lipgloss.Color("141"),     // Purple
+    },
+    "Nord": {
+        Name:            "Nord",
+        UserBubble:      lipgloss.Color("110"),     // Blue-green
+        AssistantBubble: lipgloss.Color("109"),     // Light blue
+        Timestamp:       lipgloss.Color("251"),     // Light gray
+        Border:          lipgloss.Color("110"),     // Blue-green
+    },
+    "Monokai": {
+        Name:            "Monokai",
+        UserBubble:      lipgloss.Color("197"),     // Pink
+        AssistantBubble: lipgloss.Color("208"),     // Orange
+        Timestamp:       lipgloss.Color("252"),     // Light gray
+        Border:          lipgloss.Color("197"),     // Pink
+    },
 }
 
 // Add theme confirmation model
@@ -659,8 +691,18 @@ func NewThemeSelectionModel() ThemeSelectionModel {
         {Title: "Theme Name", Width: 70},
     }
 
-    rows := make([]table.Row, len(availableThemes))
-    for i, theme := range availableThemes {
+    // Convert map to slice for ordered display
+    themes := make([]ThemeColors, 0, len(themeMap))
+    for _, theme := range themeMap {
+        themes = append(themes, theme)
+    }
+    // Sort themes by name for consistent display
+    sort.Slice(themes, func(i, j int) bool {
+        return themes[i].Name < themes[j].Name
+    })
+
+    rows := make([]table.Row, len(themes))
+    for i, theme := range themes {
         rows[i] = []string{fmt.Sprintf("%d", i+1), theme.Name}
     }
 
@@ -705,8 +747,10 @@ func (m ThemeSelectionModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
             if len(selectedRow) >= 2 {
                 if err := saveTheme(selectedRow[1]); err != nil {
                     fmt.Printf("Error saving theme: %v\n", err)
+                    return m, tea.Quit
                 }
-                return m, tea.Quit
+                // Explicitly transition to theme selection
+                return NewThemeConfirmModel(), nil
             }
         }
     }
@@ -768,4 +812,53 @@ func saveTheme(theme string) error {
     }
 
     return nil
+}
+
+// Add these at the top level of the file, after the imports
+type Config struct {
+	APIKey       string `mapstructure:"api_key"`
+	DefaultModel string `mapstructure:"default_model"`
+	SystemPrompt string `mapstructure:"system_prompt"`
+	Theme        string `mapstructure:"theme"`
+}
+
+// Add this function to handle config loading
+func LoadConfig() (*Config, error) {
+	usr, err := os.UserHomeDir()
+	if err != nil {
+		return nil, fmt.Errorf("error getting home directory: %w", err)
+	}
+
+	configPath := filepath.Join(usr, ".goatmeal", "config.yaml")
+	viper.SetConfigFile(configPath)
+
+	if err := viper.ReadInConfig(); err != nil {
+		return nil, fmt.Errorf("error reading config file: %w", err)
+	}
+
+	var config Config
+	if err := viper.Unmarshal(&config); err != nil {
+		return nil, fmt.Errorf("error unmarshaling config: %w", err)
+	}
+
+	// Set defaults if not specified
+	if config.DefaultModel == "" {
+		config.DefaultModel = "mixtral-8x7b-32768"
+	}
+	if config.SystemPrompt == "" {
+		config.SystemPrompt = "You are a helpful AI assistant. You aim to give accurate, helpful, and concise responses."
+	}
+	if config.Theme == "" {
+		config.Theme = "Default"
+	}
+
+	return &config, nil
+}
+
+// Add this method to get theme colors
+func (c *Config) GetThemeColors() ThemeColors {
+	if colors, ok := themeMap[c.Theme]; ok {
+		return colors
+	}
+	return themeMap["Default"]
 }

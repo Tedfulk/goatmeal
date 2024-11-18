@@ -7,15 +7,10 @@ import (
 	"path/filepath"
 
 	"goatmeal/config"
+	"goatmeal/ui"
 
-	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 )
-
-type model struct {
-	list     list.Model
-	quitting bool
-}
 
 func main() {
 	// Check for the configuration file
@@ -24,18 +19,38 @@ func main() {
 
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		// Run the wizard if the config file does not exist
-		runWizard()
-	} else {
-		fmt.Println("Configuration file found. Proceeding with the application...")
-		// Proceed with the rest of the application
+		if err := runWizard(); err != nil {
+			fmt.Printf("Error during setup: %v\n", err)
+			os.Exit(1)
+		}
+	}
+
+	// Start the chat application with the config
+	if err := runChat(); err != nil {
+		fmt.Printf("Error running chat: %v\n", err)
+		os.Exit(1)
 	}
 }
 
-func runWizard() {
-	// Start the Bubble Tea application in full-screen mode
+func runWizard() error {
 	p := tea.NewProgram(config.InitialModel(), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
-		fmt.Printf("Error running program: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("error running wizard: %w", err)
 	}
+	return nil
+}
+
+func runChat() error {
+	model, err := ui.NewMainModel()
+	if err != nil {
+		return fmt.Errorf("error initializing chat: %w", err)
+	}
+
+	p := tea.NewProgram(
+		model,
+		tea.WithAltScreen(),
+	)
+
+	_, err = p.Run()
+	return err
 }
