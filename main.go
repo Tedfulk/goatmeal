@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"goatmeal/config"
+	"goatmeal/db"
 	"goatmeal/ui"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -24,6 +25,14 @@ func main() {
 			os.Exit(1)
 		}
 	}
+
+	// Initialize database
+	chatDB, err := db.NewChatDB()
+	if err != nil {
+		fmt.Printf("Error initializing database: %v\n", err)
+		os.Exit(1)
+	}
+	defer chatDB.Close()
 
 	// Start the chat application with the config
 	if err := runChat(); err != nil {

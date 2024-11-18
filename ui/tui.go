@@ -16,10 +16,20 @@ import (
 type errMsg error
 type aiResponseMsg api.Message
 
+// Add view states
+type viewState int
+
+const (
+	chatView viewState = iota
+	menuView
+)
+
 // MainModel combines all the components of our chat UI
 type MainModel struct {
 	chat        ChatModel
 	input       InputModel
+	menu        MenuModel
+	currentView viewState
 	spinner     spinner.Model
 	loading     bool
 	height      int
@@ -55,8 +65,10 @@ func NewMainModel() (MainModel, error) {
 	}
 
 	return MainModel{
-		chat:       chat,
+		chat:        chat,
 		input:      NewInput(),
+		menu:       NewMenu(),
+		currentView: chatView,
 		spinner:    s,
 		groqClient: groqClient,
 		config:     config,
@@ -82,54 +94,49 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		m.width = msg.Width
 		
-		// Update both components with new size
+		if m.currentView == menuView {
+			var menuModel tea.Model
+			menuModel, cmd = m.menu.Update(msg)
+			m.menu = menuModel.(MenuModel)
+			return m, cmd
+		}
+		
+		// Update chat components with new size
 		m.chat, cmd = m.chat.Update(msg)
 		cmds = append(cmds, cmd)
 		m.input, cmd = m.input.Update(msg)
 		cmds = append(cmds, cmd)
 
-	case spinner.TickMsg:
-		if m.loading {
-			m.spinner, cmd = m.spinner.Update(msg)
-			cmds = append(cmds, cmd)
-		}
-
-	case aiResponseMsg:
-		m.loading = false
-		m.chat.AddMessage(api.Message(msg))
-		m.input.textarea.Reset()
-		return m, nil
-
-	case errMsg:
-		m.loading = false
-		m.err = msg
-		errorMessage := api.Message{
-			Role:      "system",
-			Content:   fmt.Sprintf("Error: %v", msg),
-			Timestamp: time.Now(),
-		}
-		m.chat.AddMessage(errorMessage)
-		return m, nil
-
 	case tea.KeyMsg:
-		// Handle tab key for both scroll and input modes
-		if msg.String() == "tab" {
-			if m.input.textarea.Focused() {
+		// Global key handlers
+		switch msg.String() {
+		case "shift+tab":
+			// Toggle between chat and menu views
+			if m.currentView == chatView {
+				m.currentView = menuView
 				m.input.textarea.Blur()
 			} else {
+				m.currentView = chatView
 				m.input.textarea.Focus()
 			}
 			return m, nil
 		}
 
-		// Handle scrolling when not focused on input
-		if !m.input.textarea.Focused() {
-			var chatCmd tea.Cmd
-			m.chat, chatCmd = m.chat.Update(msg)
-			return m, chatCmd
+		// Handle view-specific updates
+		if m.currentView == menuView {
+			var menuModel tea.Model
+			menuModel, cmd = m.menu.Update(msg)
+			m.menu = menuModel.(MenuModel)
+			
+			// Check if menu is quitting
+			if m.menu.quitting {
+				m.currentView = chatView
+				m.input.textarea.Focus()
+			}
+			return m, cmd
 		}
 
-		// Handle global keypresses
+		// Chat view key handlers
 		switch {
 		case key.Matches(msg, m.input.keyMap.Quit):
 			m.quitting = true
@@ -142,11 +149,9 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					Timestamp: time.Now(),
 				}
 				
-				// Add user message to chat
 				m.chat.AddMessage(userMsg)
 				m.loading = true
 				
-				// Create a command to get the AI response
 				return m, tea.Batch(
 					m.getAIResponse(userMsg),
 					m.spinner.Tick,
@@ -154,11 +159,23 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-		// If input is focused, pass events to input
-		if m.input.textarea.Focused() {
-			m.input, cmd = m.input.Update(msg)
-			cmds = append(cmds, cmd)
+		// Handle tab for focus switching in chat view
+		if msg.String() == "tab" {
+			if m.input.textarea.Focused() {
+				m.input.textarea.Blur()
+			} else {
+				m.input.textarea.Focus()
+			}
+			return m, nil
 		}
+
+		// Pass other messages to appropriate component
+		if !m.input.textarea.Focused() {
+			m.chat, cmd = m.chat.Update(msg)
+		} else {
+			m.input, cmd = m.input.Update(msg)
+		}
+		cmds = append(cmds, cmd)
 	}
 
 	return m, tea.Batch(cmds...)
@@ -169,11 +186,22 @@ func (m MainModel) View() string {
 		return "Goodbye!\n"
 	}
 
-	// Combine chat and input views without the top border
+	if m.currentView == menuView {
+		// Center the entire menu view in the terminal
+		return lipgloss.Place(
+			m.width,
+			m.height,
+			lipgloss.Center,
+			lipgloss.Center,
+			m.menu.View(),
+		)
+	}
+
+	// Show chat view
 	return lipgloss.JoinVertical(
 		lipgloss.Left,
 		m.chat.View(),
-		m.input.View(), // Remove the border styling wrapper
+		m.input.View(),
 	)
 }
 

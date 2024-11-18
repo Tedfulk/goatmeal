@@ -7,13 +7,13 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-type keyMap struct {
+type inputKeyMap struct {
 	Send     key.Binding
 	NewLine  key.Binding
 	Quit     key.Binding
 }
 
-var keys = keyMap{
+var inputKeys = inputKeyMap{
 	Send: key.NewBinding(
 		key.WithKeys("enter"),
 		key.WithHelp("enter", "send"),
@@ -30,7 +30,7 @@ var keys = keyMap{
 
 type InputModel struct {
 	textarea    textarea.Model
-	keyMap      keyMap
+	keyMap      inputKeyMap
 	width       int
 	height      int
 	placeholder string
@@ -64,7 +64,7 @@ func NewInput() InputModel {
 
 	return InputModel{
 		textarea:    ta,
-		keyMap:      keys,
+		keyMap:      inputKeys,
 		placeholder: "Send a message...",
 	}
 }
