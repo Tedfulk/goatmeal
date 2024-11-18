@@ -192,8 +192,8 @@ func NewModelSelectionModel(models []string) ModelSelectionModel {
 	// Style the table
 	s := table.DefaultStyles()
 	s.Header = s.Header.
-		BorderStyle(lipgloss.NormalBorder()).
-		BorderForeground(lipgloss.Color("240")).
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("white")).
 		BorderBottom(true).
 		Bold(false).
 		Foreground(lipgloss.Color("170"))
@@ -220,8 +220,10 @@ func (m ModelSelectionModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if len(selectedRow) >= 2 {
 				if err := saveSelectedModel(selectedRow[1]); err != nil {
 					fmt.Printf("Error saving selected model: %v\n", err)
+					return m, tea.Quit
 				}
-				return m, tea.Quit
+				// Instead of quitting, ask about system prompt
+				return NewSystemPromptConfirmModel(), nil
 			}
 		}
 	}
@@ -242,8 +244,8 @@ func (m ModelSelectionModel) View() string {
 
 	// Create base style for the table
 	baseStyle := lipgloss.NewStyle().
-		BorderStyle(lipgloss.NormalBorder()).
-		BorderForeground(lipgloss.Color("240"))
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("white"))
 
 	// Create custom help text
 	helpStyle := lipgloss.NewStyle().
@@ -257,10 +259,9 @@ func (m ModelSelectionModel) View() string {
 		lipgloss.Center,
 		title,
 		baseStyle.Render(m.table.View()),
-		helpText,  // Use our custom help text instead of m.table.HelpView()
+		helpText,
 	)
 
-	// Center everything in the terminal
 	return lipgloss.Place(
 		terminalWidth,
 		terminalHeight,
@@ -351,4 +352,420 @@ func saveSelectedModel(model string) error {
 	}
 
 	return nil
+}
+
+// First, add a new model type for the system prompt input
+type SystemPromptModel struct {
+    textInput textinput.Model
+    err       error
+}
+
+// Add new model for the yes/no confirmation
+type SystemPromptConfirmModel struct {
+    quitting bool
+}
+
+func NewSystemPromptConfirmModel() SystemPromptConfirmModel {
+    return SystemPromptConfirmModel{}
+}
+
+func (m SystemPromptConfirmModel) Init() tea.Cmd {
+    return nil
+}
+
+func (m SystemPromptConfirmModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+    switch msg := msg.(type) {
+    case tea.KeyMsg:
+        switch msg.String() {
+        case "q", "ctrl+c":
+            m.quitting = true
+            return m, tea.Quit
+        case "n", "N":
+            // Save the default system prompt
+            if err := saveSystemPrompt(defaultSystemPrompt); err != nil {
+                fmt.Printf("Error saving default system prompt: %v\n", err)
+            }
+            // Instead of quitting, transition to theme confirmation
+            return NewThemeConfirmModel(), nil
+        case "y", "Y":
+            return NewSystemPromptInputModel(), nil
+        }
+    }
+    return m, nil
+}
+
+func (m SystemPromptConfirmModel) View() string {
+    if m.quitting {
+        return quitTextStyle.Render("Goodbye!")
+    }
+
+    // Create confirmation message with center alignment
+    text := lipgloss.NewStyle().
+        Bold(true).
+        Foreground(lipgloss.Color("170")).
+        Width(78).  // Slightly less than container width to account for padding
+        Align(lipgloss.Center).
+        Render("Would you like to set a custom system prompt?")
+
+    // Create help text with default prompt info, centered
+    defaultInfo := lipgloss.NewStyle().
+        Foreground(lipgloss.Color("241")).
+        Width(78).  // Slightly less than container width to account for padding
+        Align(lipgloss.Center).
+        Render("y: Yes • n: No • A default prompt will be used if you select 'n'")
+
+
+    // Create a container with border
+    containerStyle := lipgloss.NewStyle().
+        BorderStyle(lipgloss.RoundedBorder()).
+        BorderForeground(lipgloss.Color("white")).
+        Padding(1).
+        Width(80).
+        Align(lipgloss.Center)  // Center the container itself
+
+    // Combine elements inside the container
+    innerContent := lipgloss.JoinVertical(
+        lipgloss.Center,
+        text,
+        "\n",
+        defaultInfo,
+    )
+
+    // Wrap in container with border
+    content := containerStyle.Render(innerContent)
+
+    // Center in terminal
+    return lipgloss.Place(
+        terminalWidth,
+        terminalHeight,
+        lipgloss.Center,
+        lipgloss.Center,
+        content,
+    )
+}
+
+// Add new model for the system prompt input
+func NewSystemPromptInputModel() SystemPromptModel {
+    ti := textinput.New()
+    ti.Placeholder = "Enter system prompt"
+    ti.Focus()
+    ti.Width = 70
+    ti.CharLimit = 500
+
+    return SystemPromptModel{
+        textInput: ti,
+    }
+}
+
+func (m SystemPromptModel) Init() tea.Cmd {
+    return textinput.Blink
+}
+
+func (m SystemPromptModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+    var cmd tea.Cmd
+
+    switch msg := msg.(type) {
+    case tea.KeyMsg:
+        switch msg.String() {
+        case "ctrl+c", "esc":
+            return m, tea.Quit
+        case "enter":
+            if err := saveSystemPrompt(m.textInput.Value()); err != nil {
+                m.err = err
+                return m, tea.Quit
+            }
+            // Transition to theme confirmation instead of quitting
+            return NewThemeConfirmModel(), nil
+        }
+    }
+
+    m.textInput, cmd = m.textInput.Update(msg)
+    return m, cmd
+}
+
+func (m SystemPromptModel) View() string {
+    if m.err != nil {
+        return fmt.Sprintf("Error: %v\n\nPress any key to quit.", m.err)
+    }
+
+    // Create title
+    title := lipgloss.NewStyle().
+        Bold(true).
+        Foreground(lipgloss.Color("170")).
+        Padding(0, 0, 1, 0).
+        Width(80).
+        Align(lipgloss.Center).
+        Render("Enter System Prompt")
+
+    // Create input box style
+    inputStyle := lipgloss.NewStyle().
+        BorderStyle(lipgloss.RoundedBorder()).
+        BorderForeground(lipgloss.Color("white")).
+        Padding(1).
+        Width(80)
+
+    // Create help style with fixed width and center alignment
+    helpStyle := lipgloss.NewStyle().
+        Foreground(lipgloss.Color("241")).
+        Width(80).  // Added fixed width
+        Align(lipgloss.Center)
+
+    // Combine elements
+    content := lipgloss.JoinVertical(
+        lipgloss.Center,
+        title,
+        inputStyle.Render(m.textInput.View()),
+        helpStyle.Render("Enter to save • Esc to quit"),
+    )
+
+    // Center in terminal
+    return lipgloss.Place(
+        terminalWidth,
+        terminalHeight,
+        lipgloss.Center,
+        lipgloss.Center,
+        content,
+    )
+}
+
+// Add helper function to save the system prompt
+func saveSystemPrompt(prompt string) error {
+    usr, err := os.UserHomeDir()
+    if err != nil {
+        return fmt.Errorf("error getting home directory: %v", err)
+    }
+    
+    configPath := filepath.Join(usr, ".goatmeal", "config.yaml")
+    
+    viper.SetConfigFile(configPath)
+    viper.Set("system_prompt", prompt)
+    
+    if err := viper.WriteConfig(); err != nil {
+        return fmt.Errorf("error writing config: %v", err)
+    }
+
+    return nil
+}
+
+// Add theme-related constants
+const (
+    defaultSystemPrompt = "You are a helpful AI assistant. You aim to give accurate, helpful, and concise responses."
+    defaultTheme       = "white"
+)
+
+// Define available themes
+type Theme struct {
+    Name        string
+    BorderColor string
+    TextColor   string
+    AccentColor string
+}
+
+var availableThemes = []Theme{
+    {Name: "Dracula", BorderColor: "141", TextColor: "253", AccentColor: "141"},      // Purple theme
+    {Name: "Nord", BorderColor: "110", TextColor: "251", AccentColor: "110"},         // Blue-green theme
+    {Name: "Monokai", BorderColor: "197", TextColor: "252", AccentColor: "197"},      // Pink theme
+    {Name: "Cyberpunk", BorderColor: "99", TextColor: "251", AccentColor: "99"},      // Neon blue theme
+    {Name: "Matrix", BorderColor: "46", TextColor: "252", AccentColor: "46"},         // Green theme
+}
+
+// Add theme confirmation model
+type ThemeConfirmModel struct {
+    quitting bool
+}
+
+// Add theme selection model
+type ThemeSelectionModel struct {
+    table table.Model
+}
+
+// Add theme confirmation methods
+func NewThemeConfirmModel() ThemeConfirmModel {
+    return ThemeConfirmModel{}
+}
+
+func (m ThemeConfirmModel) Init() tea.Cmd {
+    return nil
+}
+
+func (m ThemeConfirmModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+    switch msg := msg.(type) {
+    case tea.KeyMsg:
+        switch msg.String() {
+        case "q", "ctrl+c":
+            m.quitting = true
+            return m, tea.Quit
+        case "n", "N":
+            // Save default white theme
+            if err := saveTheme(defaultTheme); err != nil {
+                fmt.Printf("Error saving default theme: %v\n", err)
+            }
+            m.quitting = true
+            return m, tea.Quit
+        case "y", "Y":
+            return NewThemeSelectionModel(), nil
+        }
+    }
+    return m, nil
+}
+
+func (m ThemeConfirmModel) View() string {
+    if m.quitting {
+        return quitTextStyle.Render("Goodbye!")
+    }
+
+    text := lipgloss.NewStyle().
+        Bold(true).
+        Foreground(lipgloss.Color("170")).
+        Width(78).
+        Align(lipgloss.Center).
+        Render("Would you like to set a custom theme?")
+
+    defaultInfo := lipgloss.NewStyle().
+        Foreground(lipgloss.Color("241")).
+        Width(78).
+        Align(lipgloss.Center).
+        Render("y: Yes • n: No • Default theme (white) will be used if you select 'n'")
+
+    containerStyle := lipgloss.NewStyle().
+        BorderStyle(lipgloss.RoundedBorder()).
+        BorderForeground(lipgloss.Color("white")).
+        Padding(1).
+        Width(80).
+        Align(lipgloss.Center)
+
+    innerContent := lipgloss.JoinVertical(
+        lipgloss.Center,
+        text,
+        "\n",
+        defaultInfo,
+    )
+
+    content := containerStyle.Render(innerContent)
+
+    return lipgloss.Place(
+        terminalWidth,
+        terminalHeight,
+        lipgloss.Center,
+        lipgloss.Center,
+        content,
+    )
+}
+
+// Add theme selection methods
+func NewThemeSelectionModel() ThemeSelectionModel {
+    columns := []table.Column{
+        {Title: "No.", Width: 4},
+        {Title: "Theme Name", Width: 70},
+    }
+
+    rows := make([]table.Row, len(availableThemes))
+    for i, theme := range availableThemes {
+        rows[i] = []string{fmt.Sprintf("%d", i+1), theme.Name}
+    }
+
+    t := table.New(
+        table.WithColumns(columns),
+        table.WithRows(rows),
+        table.WithFocused(true),
+        table.WithHeight(7),
+    )
+
+    s := table.DefaultStyles()
+    s.Header = s.Header.
+        BorderStyle(lipgloss.RoundedBorder()).
+        BorderForeground(lipgloss.Color("white")).
+        BorderBottom(true).
+        Bold(false).
+        Foreground(lipgloss.Color("170"))
+    
+    s.Selected = s.Selected.
+        Foreground(lipgloss.Color("170")).
+        Bold(true)
+    
+    t.SetStyles(s)
+
+    return ThemeSelectionModel{table: t}
+}
+
+func (m ThemeSelectionModel) Init() tea.Cmd {
+    return nil
+}
+
+func (m ThemeSelectionModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+    var cmd tea.Cmd
+    
+    switch msg := msg.(type) {
+    case tea.KeyMsg:
+        switch msg.String() {
+        case "q", "ctrl+c":
+            return m, tea.Quit
+        case "enter":
+            selectedRow := m.table.SelectedRow()
+            if len(selectedRow) >= 2 {
+                if err := saveTheme(selectedRow[1]); err != nil {
+                    fmt.Printf("Error saving theme: %v\n", err)
+                }
+                return m, tea.Quit
+            }
+        }
+    }
+
+    m.table, cmd = m.table.Update(msg)
+    return m, cmd
+}
+
+func (m ThemeSelectionModel) View() string {
+    title := lipgloss.NewStyle().
+        Bold(true).
+        Foreground(lipgloss.Color("170")).
+        Padding(0, 0, 1, 0).
+        Width(80).
+        Align(lipgloss.Center).
+        Render("Select a Theme")
+
+    baseStyle := lipgloss.NewStyle().
+        BorderStyle(lipgloss.RoundedBorder()).
+        BorderForeground(lipgloss.Color("white"))
+
+    helpStyle := lipgloss.NewStyle().
+        Foreground(lipgloss.Color("241")).
+        Width(80).  // Added fixed width
+        Align(lipgloss.Center)
+
+    helpText := helpStyle.Render("↑/↓: Navigate • enter: Select • q: Quit")
+
+    content := lipgloss.JoinVertical(
+        lipgloss.Center,
+        title,
+        baseStyle.Render(m.table.View()),
+        helpText,
+    )
+
+    return lipgloss.Place(
+        terminalWidth,
+        terminalHeight,
+        lipgloss.Center,
+        lipgloss.Center,
+        content,
+    )
+}
+
+// Add helper function to save the theme
+func saveTheme(theme string) error {
+    usr, err := os.UserHomeDir()
+    if err != nil {
+        return fmt.Errorf("error getting home directory: %v", err)
+    }
+    
+    configPath := filepath.Join(usr, ".goatmeal", "config.yaml")
+    
+    viper.SetConfigFile(configPath)
+    viper.Set("theme", theme)
+    
+    if err := viper.WriteConfig(); err != nil {
+        return fmt.Errorf("error writing config: %v", err)
+    }
+
+    return nil
 }
