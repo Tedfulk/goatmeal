@@ -2,9 +2,9 @@ package ui
 
 import (
 	"fmt"
-	"goatmeal/api"
-	"goatmeal/config"
-	"goatmeal/db"
+	"github.com/tedfulk/goatmeal/api"
+	"github.com/tedfulk/goatmeal/config"
+	"github.com/tedfulk/goatmeal/db"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"

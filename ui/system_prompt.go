@@ -2,7 +2,7 @@ package ui
 
 import (
 	"fmt"
-	"goatmeal/config"
+	"github.com/tedfulk/goatmeal/config"
 	"os"
 	"os/exec"
 	"path/filepath"

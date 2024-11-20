@@ -6,9 +6,9 @@ import (
 	"os/user"
 	"path/filepath"
 
-	"goatmeal/config"
-	"goatmeal/db"
-	"goatmeal/ui"
+	"github.com/tedfulk/goatmeal/config"
+	"github.com/tedfulk/goatmeal/db"
+	"github.com/tedfulk/goatmeal/ui"
 
 	tea "github.com/charmbracelet/bubbletea"
 )

@@ -1,7 +1,7 @@
 package ui
 
 import (
-	"goatmeal/config"
+	"github.com/tedfulk/goatmeal/config"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"

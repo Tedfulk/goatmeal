@@ -4,9 +4,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"goatmeal/config"
 	"net/http"
 	"time"
+
+	"github.com/tedfulk/goatmeal/config"
 )
 
 type GroqClient struct {
