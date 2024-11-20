@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"goatmeal/config"
+
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
@@ -11,6 +13,7 @@ type inputKeyMap struct {
 	Send     key.Binding
 	NewLine  key.Binding
 	Quit     key.Binding
+	NewChat  key.Binding
 }
 
 var inputKeys = inputKeyMap{
@@ -26,6 +29,10 @@ var inputKeys = inputKeyMap{
 		key.WithKeys("ctrl+c", "esc"),
 		key.WithHelp("ctrl+c/esc", "quit"),
 	),
+	NewChat: key.NewBinding(
+		key.WithKeys("ctrl+n"),
+		key.WithHelp("ctrl+n", "new chat"),
+	),
 }
 
 type InputModel struct {
@@ -36,26 +43,30 @@ type InputModel struct {
 	placeholder string
 }
 
-func NewInput() InputModel {
+func NewInput(colors config.ThemeColors) InputModel {
 	ta := textarea.New()
 	ta.Placeholder = "Send a message..."
 	ta.Focus()
 	ta.ShowLineNumbers = false
 	ta.SetWidth(30)
-	ta.SetHeight(4)
+	ta.SetHeight(2)
 
-	// Style the textarea
+	// Style the textarea with no bottom padding/margin and theme colors
 	ta.FocusedStyle.Base = lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("7")). // White border
+		BorderForeground(lipgloss.Color(colors.UserBubble)). // Use theme color for border
 		BorderBackground(lipgloss.Color("0")).  // Black background
-		MarginBottom(0)                        // Remove bottom margin
+		Padding(0).                            // Remove all padding
+		MarginTop(0).                          // Remove top margin
+		MarginBottom(0).                       // Remove bottom margin
+		MarginLeft(0).                         // Remove left margin
+		MarginRight(0)                         // Remove right margin
 
 	ta.BlurredStyle.Base = ta.FocusedStyle.Base
 
-	// Style the text
+	// Style the text with theme colors
 	ta.FocusedStyle.CursorLine = lipgloss.NewStyle()
-	ta.FocusedStyle.Text = lipgloss.NewStyle().Foreground(lipgloss.Color("7")) // White text
+	ta.FocusedStyle.Text = lipgloss.NewStyle().Foreground(lipgloss.Color(colors.UserText)) // Theme text color
 	ta.BlurredStyle.Text = ta.FocusedStyle.Text
 
 	// Style the placeholder
@@ -79,14 +90,20 @@ func (m InputModel) Update(msg tea.Msg) (InputModel, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		if key.Matches(msg, m.keyMap.NewChat) {
+			return m, func() tea.Msg { return NewChatMsg{} }
+		}
+
 		switch {
 		case key.Matches(msg, m.keyMap.Quit):
 			return m, tea.Quit
 		case key.Matches(msg, m.keyMap.Send):
-			if m.textarea.Value() != "" {
-				// Handle send message here
+			if content := m.textarea.Value(); content != "" {
+				// Create command to send message
+				cmds = append(cmds, func() tea.Msg {
+					return SendMessageMsg{content: content}
+				})
 				m.textarea.Reset()
-				return m, nil
 			}
 		}
 	case tea.WindowSizeMsg:

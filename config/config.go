@@ -547,58 +547,88 @@ func saveSystemPrompt(prompt string) error {
     return nil
 }
 
-// Add theme-related constants
+// Keep only one set of constants at the top of the file
 const (
     defaultSystemPrompt = "You are a helpful AI assistant. You aim to give accurate, helpful, and concise responses."
-    defaultTheme       = "white"
+    defaultTheme       = "Default"
 )
 
-// Update ThemeColors to include a display name
+// Keep the rest of the file structure but remove duplicates
+type Config struct {
+    APIKey        string            `mapstructure:"api_key"`
+    DefaultModel  string            `mapstructure:"default_model"`
+    SystemPrompt  string            `mapstructure:"system_prompt"`  // Current active prompt
+    SystemPrompts []string          `mapstructure:"system_prompts"` // List of saved prompts
+    Theme         string            `mapstructure:"theme"`
+}
+
 type ThemeColors struct {
-    Name            string          // Added display name
-    UserBubble      lipgloss.Color
-    AssistantBubble lipgloss.Color
-    Timestamp       lipgloss.Color
-    Border          lipgloss.Color
+    UserBubble       string
+    UserText         string
+    AssistantBubble  string
+    AssistantText    string
+    Timestamp        string
 }
 
 // Consolidate into a single theme definition
-var themeMap = map[string]ThemeColors{
+var ThemeMap = map[string]ThemeColors{
     "Default": {
-        Name:            "Default",
-        UserBubble:      lipgloss.Color("62"),      // Blue
-        AssistantBubble: lipgloss.Color("63"),      // Purple
-        Timestamp:       lipgloss.Color("241"),     // Gray
-        Border:          lipgloss.Color("240"),     // Dark gray
+        UserBubble:      "99",  // Light blue
+        UserText:        "15",  // White
+        AssistantBubble: "62",  // Purple
+        AssistantText:  "15",   // White
+        Timestamp:      "240",  // Gray
     },
     "Matrix": {
-        Name:            "Matrix",
-        UserBubble:      lipgloss.Color("86"),      // Light green
-        AssistantBubble: lipgloss.Color("22"),      // Dark green
-        Timestamp:       lipgloss.Color("242"),     // Gray
-        Border:          lipgloss.Color("34"),      // Medium green
+        UserBubble:      "86",      // Light green
+        UserText:        "15",      // White
+        AssistantBubble: "22",      // Dark green
+        AssistantText:  "15",      // White
+        Timestamp:      "242",     // Gray
     },
     "Dracula": {
-        Name:            "Dracula",
-        UserBubble:      lipgloss.Color("141"),     // Purple
-        AssistantBubble: lipgloss.Color("61"),      // Light purple
-        Timestamp:       lipgloss.Color("243"),     // Light gray
-        Border:          lipgloss.Color("141"),     // Purple
+        UserBubble:      "141",     // Purple
+        UserText:        "15",      // White
+        AssistantBubble: "61",      // Light purple
+        AssistantText:  "15",      // White
+        Timestamp:      "243",     // Light gray
     },
     "Nord": {
-        Name:            "Nord",
-        UserBubble:      lipgloss.Color("110"),     // Blue-green
-        AssistantBubble: lipgloss.Color("109"),     // Light blue
-        Timestamp:       lipgloss.Color("251"),     // Light gray
-        Border:          lipgloss.Color("110"),     // Blue-green
+        UserBubble:      "110",     // Blue-green
+        UserText:        "15",      // White
+        AssistantBubble: "109",     // Light blue
+        AssistantText:  "15",      // White
+        Timestamp:      "251",     // Light gray
     },
     "Monokai": {
-        Name:            "Monokai",
-        UserBubble:      lipgloss.Color("197"),     // Pink
-        AssistantBubble: lipgloss.Color("208"),     // Orange
-        Timestamp:       lipgloss.Color("252"),     // Light gray
-        Border:          lipgloss.Color("197"),     // Pink
+        UserBubble:      "197",     // Pink
+        UserText:        "15",      // White
+        AssistantBubble: "208",     // Orange
+        AssistantText:  "15",      // White
+        Timestamp:      "252",     // Light gray
     },
+}
+
+// Remove duplicate ThemeConfirmModel.Update method and keep only one implementation
+func (m ThemeConfirmModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+    switch msg := msg.(type) {
+    case tea.KeyMsg:
+        switch msg.String() {
+        case "q", "ctrl+c":
+            m.quitting = true
+            return m, tea.Quit
+        case "n", "N":
+            // Save default theme
+            if err := saveTheme(defaultTheme); err != nil {
+                fmt.Printf("Error saving default theme: %v\n", err)
+            }
+            m.quitting = true
+            return m, tea.Quit
+        case "y", "Y":
+            return NewThemeSelectionModel(), nil
+        }
+    }
+    return m, nil
 }
 
 // Add theme confirmation model
@@ -620,27 +650,6 @@ func (m ThemeConfirmModel) Init() tea.Cmd {
     return nil
 }
 
-func (m ThemeConfirmModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-    switch msg := msg.(type) {
-    case tea.KeyMsg:
-        switch msg.String() {
-        case "q", "ctrl+c":
-            m.quitting = true
-            return m, tea.Quit
-        case "n", "N":
-            // Save default white theme
-            if err := saveTheme(defaultTheme); err != nil {
-                fmt.Printf("Error saving default theme: %v\n", err)
-            }
-            m.quitting = true
-            return m, tea.Quit
-        case "y", "Y":
-            return NewThemeSelectionModel(), nil
-        }
-    }
-    return m, nil
-}
-
 func (m ThemeConfirmModel) View() string {
     if m.quitting {
         return quitTextStyle.Render("Goodbye!")
@@ -657,7 +666,7 @@ func (m ThemeConfirmModel) View() string {
         Foreground(lipgloss.Color("241")).
         Width(78).
         Align(lipgloss.Center).
-        Render("y: Yes • n: No • Default theme (white) will be used if you select 'n'")
+        Render("y: Yes • n: No • Default theme will be used if you select 'n'")
 
     containerStyle := lipgloss.NewStyle().
         BorderStyle(lipgloss.RoundedBorder()).
@@ -691,19 +700,19 @@ func NewThemeSelectionModel() ThemeSelectionModel {
         {Title: "Theme Name", Width: 70},
     }
 
-    // Convert map to slice for ordered display
-    themes := make([]ThemeColors, 0, len(themeMap))
-    for _, theme := range themeMap {
-        themes = append(themes, theme)
+    // Get theme names from the map keys
+    var themeNames []string
+    for name := range ThemeMap {
+        themeNames = append(themeNames, name)
     }
-    // Sort themes by name for consistent display
-    sort.Slice(themes, func(i, j int) bool {
-        return themes[i].Name < themes[j].Name
-    })
+    
+    // Sort theme names alphabetically
+    sort.Strings(themeNames)
 
-    rows := make([]table.Row, len(themes))
-    for i, theme := range themes {
-        rows[i] = []string{fmt.Sprintf("%d", i+1), theme.Name}
+    // Create rows using sorted theme names
+    rows := make([]table.Row, len(themeNames))
+    for i, name := range themeNames {
+        rows[i] = []string{fmt.Sprintf("%d", i+1), name}
     }
 
     t := table.New(
@@ -814,51 +823,154 @@ func saveTheme(theme string) error {
     return nil
 }
 
-// Add these at the top level of the file, after the imports
-type Config struct {
-	APIKey       string `mapstructure:"api_key"`
-	DefaultModel string `mapstructure:"default_model"`
-	SystemPrompt string `mapstructure:"system_prompt"`
-	Theme        string `mapstructure:"theme"`
+// Add this method to get theme colors
+func (c *Config) GetThemeColors() ThemeColors {
+	if colors, ok := ThemeMap[c.Theme]; ok {
+		return colors
+	}
+	return ThemeMap["Default"]
+}
+
+// Add method to save system prompt
+func (c *Config) SaveSystemPrompt(prompt string) error {
+	usr, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("error getting home directory: %w", err)
+	}
+	
+	configPath := filepath.Join(usr, ".goatmeal", "config.yaml")
+	
+	viper.SetConfigFile(configPath)
+	viper.Set("system_prompt", prompt)
+	
+	if err := viper.WriteConfig(); err != nil {
+		return fmt.Errorf("error writing config: %w", err)
+	}
+
+	c.SystemPrompt = prompt
+	return nil
+}
+
+// Add method to save API key
+func (c *Config) SaveAPIKey(apiKey string) error {
+    usr, err := os.UserHomeDir()
+    if err != nil {
+        return fmt.Errorf("error getting home directory: %w", err)
+    }
+    
+    configPath := filepath.Join(usr, ".goatmeal", "config.yaml")
+    
+    viper.SetConfigFile(configPath)
+    viper.Set("api_key", apiKey)
+    
+    if err := viper.WriteConfig(); err != nil {
+        return fmt.Errorf("error writing config: %w", err)
+    }
+
+    c.APIKey = apiKey
+    return nil
+}
+
+// Add method to save theme
+func (c *Config) SaveTheme(theme string) error {
+    usr, err := os.UserHomeDir()
+    if err != nil {
+        return fmt.Errorf("error getting home directory: %w", err)
+    }
+    
+    configPath := filepath.Join(usr, ".goatmeal", "config.yaml")
+    
+    viper.SetConfigFile(configPath)
+    viper.Set("theme", theme)
+    
+    if err := viper.WriteConfig(); err != nil {
+        return fmt.Errorf("error writing config: %w", err)
+    }
+
+    c.Theme = theme
+    return nil
 }
 
 // Add this function to handle config loading
 func LoadConfig() (*Config, error) {
-	usr, err := os.UserHomeDir()
-	if err != nil {
-		return nil, fmt.Errorf("error getting home directory: %w", err)
-	}
+    usr, err := os.UserHomeDir()
+    if err != nil {
+        return nil, fmt.Errorf("error getting home directory: %w", err)
+    }
 
-	configPath := filepath.Join(usr, ".goatmeal", "config.yaml")
-	viper.SetConfigFile(configPath)
+    configPath := filepath.Join(usr, ".goatmeal", "config.yaml")
+    viper.SetConfigFile(configPath)
 
-	if err := viper.ReadInConfig(); err != nil {
-		return nil, fmt.Errorf("error reading config file: %w", err)
-	}
+    if err := viper.ReadInConfig(); err != nil {
+        return nil, fmt.Errorf("error reading config file: %w", err)
+    }
 
-	var config Config
-	if err := viper.Unmarshal(&config); err != nil {
-		return nil, fmt.Errorf("error unmarshaling config: %w", err)
-	}
+    var config Config
+    if err := viper.Unmarshal(&config); err != nil {
+        return nil, fmt.Errorf("error unmarshaling config: %w", err)
+    }
 
-	// Set defaults if not specified
-	if config.DefaultModel == "" {
-		config.DefaultModel = "mixtral-8x7b-32768"
-	}
-	if config.SystemPrompt == "" {
-		config.SystemPrompt = "You are a helpful AI assistant. You aim to give accurate, helpful, and concise responses."
-	}
-	if config.Theme == "" {
-		config.Theme = "Default"
-	}
+    // Set defaults if not specified
+    if config.DefaultModel == "" {
+        config.DefaultModel = "mixtral-8x7b-32768"
+    }
+    if config.SystemPrompt == "" {
+        config.SystemPrompt = defaultSystemPrompt
+    }
+    if config.Theme == "" {
+        config.Theme = defaultTheme
+    }
 
-	return &config, nil
+    return &config, nil
 }
 
-// Add this method to get theme colors
-func (c *Config) GetThemeColors() ThemeColors {
-	if colors, ok := themeMap[c.Theme]; ok {
-		return colors
-	}
-	return themeMap["Default"]
+// Add method to save a new system prompt
+func (c *Config) AddSystemPrompt(prompt string) error {
+    usr, err := os.UserHomeDir()
+    if err != nil {
+        return fmt.Errorf("error getting home directory: %w", err)
+    }
+    
+    configPath := filepath.Join(usr, ".goatmeal", "config.yaml")
+    
+    // Add to prompts list if not already present
+    exists := false
+    for _, p := range c.SystemPrompts {
+        if p == prompt {
+            exists = true
+            break
+        }
+    }
+    if !exists {
+        c.SystemPrompts = append(c.SystemPrompts, prompt)
+    }
+    
+    viper.SetConfigFile(configPath)
+    viper.Set("system_prompts", c.SystemPrompts)
+    
+    if err := viper.WriteConfig(); err != nil {
+        return fmt.Errorf("error writing config: %w", err)
+    }
+
+    return nil
+}
+
+// Add method to set active system prompt
+func (c *Config) SetActiveSystemPrompt(prompt string) error {
+    usr, err := os.UserHomeDir()
+    if err != nil {
+        return fmt.Errorf("error getting home directory: %w", err)
+    }
+    
+    configPath := filepath.Join(usr, ".goatmeal", "config.yaml")
+    
+    viper.SetConfigFile(configPath)
+    viper.Set("system_prompt", prompt)
+    
+    if err := viper.WriteConfig(); err != nil {
+        return fmt.Errorf("error writing config: %w", err)
+    }
+
+    c.SystemPrompt = prompt
+    return nil
 }

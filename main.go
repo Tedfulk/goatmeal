@@ -34,8 +34,8 @@ func main() {
 	}
 	defer chatDB.Close()
 
-	// Start the chat application with the config
-	if err := runChat(); err != nil {
+	// Start the chat application with the config and database
+	if err := runChat(chatDB); err != nil {
 		fmt.Printf("Error running chat: %v\n", err)
 		os.Exit(1)
 	}
@@ -49,17 +49,16 @@ func runWizard() error {
 	return nil
 }
 
-func runChat() error {
-	model, err := ui.NewMainModel()
+func runChat(chatDB db.ChatDB) error {
+	model, err := ui.NewMainModel(chatDB)
 	if err != nil {
 		return fmt.Errorf("error initializing chat: %w", err)
 	}
 
-	p := tea.NewProgram(
-		model,
-		tea.WithAltScreen(),
-	)
+	p := tea.NewProgram(model, tea.WithAltScreen())
+	if _, err := p.Run(); err != nil {
+		return fmt.Errorf("error running chat: %w", err)
+	}
 
-	_, err = p.Run()
-	return err
+	return nil
 }

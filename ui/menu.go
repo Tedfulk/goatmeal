@@ -53,6 +53,8 @@ type MenuModel struct {
 
 func NewMenu() MenuModel {
 	items := []MenuItem{
+		{title: "New Conversation", description: "Start a new chat"},
+		{title: "Conversations", description: "View conversation history"},
 		{title: "Settings", description: "Configure application settings"},
 		{title: "Help", description: "View keyboard shortcuts and help"},
 		{title: "Quit", description: "Exit the application"},
@@ -69,6 +71,9 @@ func (m MenuModel) Init() tea.Cmd {
 	return nil
 }
 
+// Add new message type for view changes
+type ChangeViewMsg viewState
+
 func (m MenuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -77,6 +82,11 @@ func (m MenuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
+		// Add ESC handling to return to chat view
+		if msg.String() == "esc" {
+			return m, func() tea.Msg { return ChangeViewMsg(chatView) }
+		}
+
 		switch {
 		case key.Matches(msg, m.keys.Quit):
 			m.quitting = true
@@ -96,15 +106,17 @@ func (m MenuModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case key.Matches(msg, m.keys.Select):
 			switch m.items[m.selected].title {
+			case "New Conversation":
+				return m, func() tea.Msg { return NewChatMsg{} }
 			case "Quit":
 				m.quitting = true
 				return m, tea.Quit
 			case "Settings":
-				// TODO: Handle settings
-				return m, nil
+				return m, func() tea.Msg { return ChangeViewMsg(settingsView) }
 			case "Help":
-				// TODO: Handle help
-				return m, nil
+				return m, func() tea.Msg { return ChangeViewMsg(helpView) }
+			case "Conversations":
+				return m, func() tea.Msg { return ChangeViewMsg(conversationListView) }
 			}
 		}
 	}
@@ -166,7 +178,7 @@ func (m MenuModel) View() string {
 			"",
 			menuItems,
 			"",
-			descriptionStyle.Render("↑/↓: navigate • enter: select • esc: back"),
+			descriptionStyle.Render("↑/↓: navigate • enter: select • esc: back • q: quit"),
 		),
 	)
 

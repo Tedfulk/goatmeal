@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"goatmeal/api"
 	"goatmeal/config"
+	"goatmeal/db"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/glamour"
@@ -20,6 +22,8 @@ type ChatModel struct {
 	height     int
 	ready      bool
 	renderer   *glamour.TermRenderer
+	db         db.ChatDB
+	currentID  string
 }
 
 type Style struct {
@@ -28,7 +32,28 @@ type Style struct {
 	Timestamp       lipgloss.Style
 }
 
-func NewChat(config *config.Config) (ChatModel, error) {
+func NewStyle(colors config.ThemeColors) Style {
+	return Style{
+		UserBubble: lipgloss.NewStyle().
+			Padding(1, 2).
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color(colors.UserBubble)).
+			Foreground(lipgloss.Color(colors.UserText)),
+
+		AssistantBubble: lipgloss.NewStyle().
+			Padding(1, 2).
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color(colors.AssistantBubble)).
+			Foreground(lipgloss.Color(colors.AssistantText)),
+
+		Timestamp: lipgloss.NewStyle().
+			Foreground(lipgloss.Color(colors.Timestamp)).
+			Italic(true).
+			Faint(true),
+	}
+}
+
+func NewChat(config *config.Config, database db.ChatDB, conversationID string) (ChatModel, error) {
 	colors := config.GetThemeColors()
 	
 	renderer, err := glamour.NewTermRenderer(
@@ -39,36 +64,87 @@ func NewChat(config *config.Config) (ChatModel, error) {
 		return ChatModel{}, fmt.Errorf("failed to initialize markdown renderer: %w", err)
 	}
 
-	return ChatModel{
-		messages: make([]api.Message, 0),
-		style:   Style{
-			UserBubble: lipgloss.NewStyle().
-				Padding(0, 1).
-				Border(lipgloss.RoundedBorder()).
-				BorderForeground(colors.UserBubble).
-				Align(lipgloss.Right),
-			
-			AssistantBubble: lipgloss.NewStyle().
-				Padding(0, 1).
-				Border(lipgloss.RoundedBorder()).
-				BorderForeground(colors.AssistantBubble).
-				Align(lipgloss.Left),
-			
-			Timestamp: lipgloss.NewStyle().
-				Foreground(colors.Timestamp).
-				Align(lipgloss.Center),
-		},
-		renderer: renderer,
-		width:    80,
-	}, nil
+	// Load existing messages for this conversation
+	dbMessages, err := database.GetMessages(conversationID)
+	if err != nil {
+		return ChatModel{}, fmt.Errorf("failed to load messages: %w", err)
+	}
+
+	// Convert db.Message to api.Message
+	var messages []api.Message
+	for _, msg := range dbMessages {
+		messages = append(messages, api.Message{
+			Role:      msg.Role,
+			Content:   msg.Content,
+			Timestamp: msg.CreatedAt,
+		})
+	}
+
+	// Initialize viewport with default size
+	vp := viewport.New(80, 20)  // Default size, will be adjusted on first WindowSizeMsg
+	vp.KeyMap = viewport.KeyMap{
+		PageDown: key.NewBinding(
+			key.WithKeys("pgdown", "ctrl+f"),
+			key.WithHelp("pgdn/ctrl+f", "page down"),
+		),
+		PageUp: key.NewBinding(
+			key.WithKeys("pgup", "ctrl+b"),
+			key.WithHelp("pgup/ctrl+b", "page up"),
+		),
+		HalfPageUp: key.NewBinding(
+			key.WithKeys("ctrl+u"),
+			key.WithHelp("ctrl+u", "half page up"),
+		),
+		HalfPageDown: key.NewBinding(
+			key.WithKeys("ctrl+d"),
+			key.WithHelp("ctrl+d", "half page down"),
+		),
+		Up: key.NewBinding(
+			key.WithKeys("up", "k"),
+			key.WithHelp("↑/k", "up"),
+		),
+		Down: key.NewBinding(
+			key.WithKeys("down", "j"),
+			key.WithHelp("↓/j", "down"),
+		),
+	}
+
+	chat := ChatModel{
+		messages:   messages,
+		style:     NewStyle(colors),
+		renderer:  renderer,
+		db:        database,
+		currentID: conversationID,
+		viewport:  vp,
+	}
+
+	// Set initial content
+	chat.viewport.SetContent(chat.renderMessages())
+
+	return chat, nil
 }
 
-func (m *ChatModel) AddMessage(msg api.Message) {
-	m.messages = append(m.messages, msg)
-	if m.ready {
-		m.viewport.SetContent(m.renderMessages())
-		m.viewport.GotoBottom()
+func (m *ChatModel) AddMessage(msg api.Message) error {
+	// Add message to the database
+	dbMsg := db.Message{
+		ConversationID: m.currentID,
+		Role:          msg.Role,
+		Content:       msg.Content,
+		CreatedAt:     msg.Timestamp,
 	}
+
+	if err := m.db.AddMessage(m.currentID, dbMsg); err != nil {
+		return fmt.Errorf("failed to persist message: %w", err)
+	}
+
+	// Add to in-memory messages
+	m.messages = append(m.messages, msg)
+	
+	// Update viewport content
+	m.viewport.SetContent(m.renderMessages())
+	m.viewport.GotoBottom() // Make sure we scroll to the latest message
+
+	return nil
 }
 
 func (m ChatModel) GetMessages() []api.Message {
@@ -103,8 +179,8 @@ func (m ChatModel) Update(msg tea.Msg) (ChatModel, tea.Cmd) {
 		}
 
 	case tea.WindowSizeMsg:
-		headerHeight := 0
-		footerHeight := 6
+		headerHeight := 1
+		footerHeight := 3
 		verticalMarginHeight := headerHeight + footerHeight
 
 		if !m.ready {
@@ -119,6 +195,9 @@ func (m ChatModel) Update(msg tea.Msg) (ChatModel, tea.Cmd) {
 
 		m.width = msg.Width
 		m.height = msg.Height
+		
+		// Re-render messages with new width
+		m.viewport.SetContent(m.renderMessages())
 	}
 
 	// Important: Update viewport and capture command

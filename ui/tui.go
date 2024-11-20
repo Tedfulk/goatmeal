@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"goatmeal/api"
 	"goatmeal/config"
+	"goatmeal/db"
 	"time"
 
-	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -15,6 +15,12 @@ import (
 // Message types for our Update function
 type errMsg error
 type aiResponseMsg api.Message
+type newConversationMsg struct{}
+type NewChatMsg struct{}
+type titleResponseMsg string
+type SendMessageMsg struct {
+	content string
+}
 
 // Add view states
 type viewState int
@@ -22,25 +28,45 @@ type viewState int
 const (
 	chatView viewState = iota
 	menuView
+	conversationListView
+	helpView
+	settingsView
+	systemPromptView
+	promptEditorView
+	apiKeyEditorView
+	themeSelectorView
+	promptSelectionView
 )
 
 // MainModel combines all the components of our chat UI
 type MainModel struct {
-	chat        ChatModel
-	input       InputModel
-	menu        MenuModel
-	currentView viewState
-	spinner     spinner.Model
-	loading     bool
-	height      int
-	width       int
-	err         error
-	quitting    bool
-	groqClient  *api.GroqClient
-	config      *config.Config
+	chat                ChatModel
+	input               InputModel
+	menu                MenuModel
+	currentView         viewState
+	spinner             spinner.Model
+	loading             bool
+	height              int
+	width               int
+	err                 error
+	quitting            bool
+	groqClient          *api.GroqClient
+	config              *config.Config
+	currentConversation string        // Track current conversation ID
+	conversations       []db.Conversation // Change this line to use db.Conversation
+	db                  db.ChatDB      // Database interface
+	conversationList    ConversationListModel
+	lastView            viewState  // Track the last view for returning from conversation list
+	help                HelpModel
+	settings SettingsModel
+	systemPrompt SystemPromptModel
+	promptEditor PromptEditorModel
+	apiKeyEditor APIKeyEditorModel
+	themeSelector ThemeSelectorModel
+	promptSelection PromptSelectionModel
 }
 
-func NewMainModel() (MainModel, error) {
+func NewMainModel(db db.ChatDB) (MainModel, error) {
 	// Load the configuration
 	config, err := config.LoadConfig()
 	if err != nil {
@@ -53,25 +79,47 @@ func NewMainModel() (MainModel, error) {
 		return MainModel{}, fmt.Errorf("error creating Groq client: %w", err)
 	}
 
+	// Create initial conversation
+	convID, err := db.CreateConversation()
+	if err != nil {
+		return MainModel{}, fmt.Errorf("failed to create conversation: %w", err)
+	}
+
+	// Initialize chat with config for proper theming
+	chat, err := NewChat(config, db, convID)
+	if err != nil {
+		return MainModel{}, fmt.Errorf("error creating chat view: %w", err)
+	}
+
 	// Initialize the spinner
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 
-	// Initialize chat with config for proper theming
-	chat, err := NewChat(config)
+	// Get conversations for the list
+	conversations, err := db.ListConversations()
 	if err != nil {
-		return MainModel{}, fmt.Errorf("error creating chat view: %w", err)
+		return MainModel{}, fmt.Errorf("error listing conversations: %w", err)
 	}
 
 	return MainModel{
-		chat:        chat,
-		input:      NewInput(),
-		menu:       NewMenu(),
-		currentView: chatView,
-		spinner:    s,
-		groqClient: groqClient,
-		config:     config,
+		chat:                chat,
+		input:               NewInput(config.GetThemeColors()),
+		menu:                NewMenu(),
+		currentView:         chatView,
+		spinner:             s,
+		groqClient:         groqClient,
+		config:             config,
+		currentConversation: convID,
+		db:                 db,
+		conversationList:    NewConversationList(conversations),
+		lastView:            chatView,
+		help:                NewHelp(),
+		settings: NewSettings(),
+		systemPrompt: NewSystemPromptMenu(config),
+		apiKeyEditor: NewAPIKeyEditor(config.APIKey),
+		themeSelector: NewThemeSelector(),
+		promptSelection: NewPromptSelection(config),
 	}, nil
 }
 
@@ -108,10 +156,15 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, cmd)
 
 	case tea.KeyMsg:
+		// Handle ESC in chat view to quit
+		if msg.String() == "esc" && m.currentView == chatView {
+			m.quitting = true
+			return m, tea.Quit
+		}
+
 		// Global key handlers
 		switch msg.String() {
 		case "shift+tab":
-			// Toggle between chat and menu views
 			if m.currentView == chatView {
 				m.currentView = menuView
 				m.input.textarea.Blur()
@@ -120,65 +173,330 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.input.textarea.Focus()
 			}
 			return m, nil
-		}
-
-		// Handle view-specific updates
-		if m.currentView == menuView {
-			var menuModel tea.Model
-			menuModel, cmd = m.menu.Update(msg)
-			m.menu = menuModel.(MenuModel)
-			
-			// Check if menu is quitting
-			if m.menu.quitting {
-				m.currentView = chatView
-				m.input.textarea.Focus()
-			}
-			return m, cmd
-		}
-
-		// Chat view key handlers
-		switch {
-		case key.Matches(msg, m.input.keyMap.Quit):
-			m.quitting = true
-			return m, tea.Quit
-		case key.Matches(msg, m.input.keyMap.Send):
-			if m.input.textarea.Value() != "" {
-				userMsg := api.Message{
-					Role:      "user",
-					Content:   m.input.textarea.Value(),
-					Timestamp: time.Now(),
+		case "tab":
+			if m.currentView == chatView {
+				if m.input.textarea.Focused() {
+					m.input.textarea.Blur()
+				} else {
+					m.input.textarea.Focus()
 				}
-				
-				m.chat.AddMessage(userMsg)
-				m.loading = true
-				
-				return m, tea.Batch(
-					m.getAIResponse(userMsg),
-					m.spinner.Tick,
-				)
 			}
-		}
-
-		// Handle tab for focus switching in chat view
-		if msg.String() == "tab" {
-			if m.input.textarea.Focused() {
-				m.input.textarea.Blur()
-			} else {
-				m.input.textarea.Focus()
-			}
+			return m, nil
+		case "ctrl+l":
+			m.lastView = m.currentView
+			m.currentView = conversationListView
 			return m, nil
 		}
 
-		// Pass other messages to appropriate component
-		if !m.input.textarea.Focused() {
-			m.chat, cmd = m.chat.Update(msg)
-		} else {
-			m.input, cmd = m.input.Update(msg)
+		// Handle view-specific updates
+		switch m.currentView {
+		case apiKeyEditorView:
+			var editorModel tea.Model
+			editorModel, cmd = m.apiKeyEditor.Update(msg)
+			m.apiKeyEditor = editorModel.(APIKeyEditorModel)
+			return m, cmd
+		case promptEditorView:
+			var editorModel tea.Model
+			editorModel, cmd = m.promptEditor.Update(msg)
+			m.promptEditor = editorModel.(PromptEditorModel)
+			return m, cmd
+		case conversationListView:
+			var listModel tea.Model
+			listModel, cmd = m.conversationList.Update(msg)
+			m.conversationList = listModel.(ConversationListModel)
+			return m, cmd
+		case menuView:
+			var menuModel tea.Model
+			menuModel, cmd = m.menu.Update(msg)
+			m.menu = menuModel.(MenuModel)
+			return m, cmd
+		case settingsView:
+			var settingsModel tea.Model
+			settingsModel, cmd = m.settings.Update(msg)
+			m.settings = settingsModel.(SettingsModel)
+			return m, cmd
+		case systemPromptView:
+			var promptModel tea.Model
+			promptModel, cmd = m.systemPrompt.Update(msg)
+			m.systemPrompt = promptModel.(SystemPromptModel)
+			return m, cmd
+		case helpView:
+			if msg.String() == "esc" {
+				m.currentView = menuView
+				return m, nil
+			}
+			var helpModel tea.Model
+			helpModel, cmd = m.help.Update(msg)
+			m.help = helpModel.(HelpModel)
+			return m, cmd
+		case themeSelectorView:
+			var selectorModel tea.Model
+			selectorModel, cmd = m.themeSelector.Update(msg)
+			m.themeSelector = selectorModel.(ThemeSelectorModel)
+			return m, cmd
+		case promptSelectionView:
+			var selectionModel tea.Model
+			selectionModel, cmd = m.promptSelection.Update(msg)
+			m.promptSelection = selectionModel.(PromptSelectionModel)
+			return m, cmd
+		default:
+			// Chat view updates
+			if m.input.textarea.Focused() {
+				// Only update input when focused
+				m.input, cmd = m.input.Update(msg)
+				return m, cmd
+			} else {
+				// Update chat view when input is not focused
+				m.chat, cmd = m.chat.Update(msg)
+				return m, cmd
+			}
 		}
-		cmds = append(cmds, cmd)
+
+	case aiResponseMsg:
+		// Add the AI's response to the chat
+		m.chat.AddMessage(api.Message(msg))
+		m.loading = false
+		m.input.textarea.Reset()
+		return m, nil
+
+	case errMsg:
+		// Handle any errors from the API
+		m.err = msg
+		m.loading = false
+		return m, nil
+
+	case spinner.TickMsg:
+		var cmd tea.Cmd
+		m.spinner, cmd = m.spinner.Update(msg)
+		return m, cmd
+
+	case NewChatMsg:
+		// Create a new conversation in the database
+		convID, err := m.db.CreateConversation()
+		if err != nil {
+			m.err = err
+			return m, nil
+		}
+
+		// Create new chat with the new conversation ID
+		newChat, err := NewChat(m.config, m.db, convID)
+		if err != nil {
+			m.err = err
+			return m, nil
+		}
+
+		// Update the current conversation ID
+		m.currentConversation = convID
+		m.chat = newChat
+		m.input.textarea.Reset()
+		return m, nil
+
+	case titleResponseMsg:
+		// Update the conversation title in the database
+		err := m.db.UpdateConversationTitle(m.currentConversation, string(msg))
+		if err != nil {
+			m.err = err
+		}
+		return m, nil
+
+	case ConversationSelectedMsg:
+		// Load the selected conversation
+		convID := string(msg)
+		newChat, err := NewChat(m.config, m.db, convID)
+		if err != nil {
+			m.err = err
+			return m, nil
+		}
+		m.chat = newChat
+		m.currentConversation = convID
+		m.currentView = chatView
+		return m, nil
+
+	case ChangeViewMsg:
+		m.lastView = m.currentView
+		m.currentView = viewState(msg)
+		return m, nil
+
+	case SettingsMsg:
+		switch msg.action {
+		case EditAPIKey:
+			m.currentView = apiKeyEditorView
+			return m, nil
+		case EditTheme:
+			m.currentView = themeSelectorView
+			return m, nil
+		case EditSystemPrompt:
+			m.lastView = m.currentView
+			m.currentView = systemPromptView
+			return m, nil
+		}
+
+	case SystemPromptMsg:
+		switch msg.action {
+		case AddPrompt:
+			editor, err := NewPromptEditor("")
+			if err != nil {
+				m.err = err
+				return m, nil
+			}
+			m.promptEditor = editor
+			m.lastView = m.currentView
+			m.currentView = promptEditorView
+			return m, m.promptEditor.Init()
+
+		case EditPrompt:
+			editor, err := NewPromptEditor(msg.prompt)
+			if err != nil {
+				m.err = err
+				return m, nil
+			}
+			m.promptEditor = editor
+			m.lastView = m.currentView
+			m.currentView = promptEditorView
+			return m, m.promptEditor.Init()
+		}
+
+	case PromptEditedMsg:
+		// Save the new prompt to config
+		if err := m.config.SaveSystemPrompt(msg.newPrompt); err != nil {
+			m.err = err
+			return m, nil
+		}
+		// Reload the config
+		newConfig, err := config.LoadConfig()
+		if err != nil {
+			m.err = err
+			return m, nil
+		}
+		m.config = newConfig
+		// Update the system prompt menu
+		m.systemPrompt = NewSystemPromptMenu(m.config)
+		return m, nil
+
+	case APIKeyUpdatedMsg:
+		// Save the new API key to config
+		if err := m.config.SaveAPIKey(msg.newKey); err != nil {
+			m.err = err
+			return m, nil
+		}
+		// Reload config and update client
+		newConfig, err := config.LoadConfig()
+		if err != nil {
+			m.err = err
+			return m, nil
+		}
+		m.config = newConfig
+		m.groqClient, err = api.NewGroqClient(newConfig)
+		if err != nil {
+			m.err = err
+			return m, nil
+		}
+		// Return to settings view
+		m.currentView = settingsView
+		return m, nil
+
+	case ThemeSelectedMsg:
+		// Save the new theme
+		if err := m.config.SaveTheme(msg.theme); err != nil {
+			m.err = err
+			return m, nil
+		}
+		
+		// Reload config to apply new theme
+		newConfig, err := config.LoadConfig()
+		if err != nil {
+			m.err = err
+			return m, nil
+		}
+		m.config = newConfig
+		
+		// Update chat styles with new theme colors
+		newChat, err := NewChat(newConfig, m.db, m.currentConversation)
+		if err != nil {
+			m.err = err
+			return m, nil
+		}
+		
+		// Copy over existing messages and viewport state
+		for _, msg := range m.chat.GetMessages() {
+			if err := newChat.AddMessage(msg); err != nil {
+				m.err = err
+				return m, nil
+			}
+		}
+		
+		// Ensure viewport is properly initialized with current window size
+		newChat.ready = true
+		newChat.width = m.width
+		newChat.height = m.height
+		newChat.viewport.Width = m.width
+		newChat.viewport.Height = m.height - 4  // Account for input height
+		newChat.viewport.SetContent(newChat.renderMessages())
+		
+		// Replace the old chat model with the new one
+		m.chat = newChat
+		
+		// Create new input model with updated theme
+		m.input = NewInput(newConfig.GetThemeColors())
+		m.input.textarea.SetWidth(m.width - 4)  // Ensure input width is set correctly
+		
+		// Force a window size update to ensure everything is laid out correctly
+		sizeMsg := tea.WindowSizeMsg{
+			Width:  m.width,
+			Height: m.height,
+		}
+		
+		// Return to settings view with a window resize command
+		m.currentView = settingsView
+		return m, func() tea.Msg { return sizeMsg }
+
+	case SystemPromptSelectedMsg:
+		if err := m.config.SetActiveSystemPrompt(msg.prompt); err != nil {
+			m.err = err
+			return m, nil
+		}
+		m.currentView = systemPromptView
+		return m, nil
+
+	case SendMessageMsg:
+		// Create user message
+		userMsg := api.Message{
+			Role:      "user",
+			Content:   msg.content,
+			Timestamp: time.Now(),
+		}
+		
+		// Add user message to chat
+		if err := m.chat.AddMessage(userMsg); err != nil {
+			m.err = err
+			return m, nil
+		}
+		
+		// Set loading state
+		m.loading = true
+		
+		// Generate title for new conversations
+		var cmds []tea.Cmd
+		if len(m.chat.GetMessages()) == 1 {
+			cmds = append(cmds, m.generateTitle(msg.content))
+		}
+		
+		// Get AI response
+		cmds = append(cmds, m.getAIResponse(userMsg))
+		return m, tea.Batch(cmds...)
 	}
 
 	return m, tea.Batch(cmds...)
+}
+
+func (m MainModel) centerView(content string) string {
+	return lipgloss.Place(
+		m.width,
+		m.height,
+		lipgloss.Center,
+		lipgloss.Center,
+		content,
+	)
 }
 
 func (m MainModel) View() string {
@@ -186,23 +504,38 @@ func (m MainModel) View() string {
 		return "Goodbye!\n"
 	}
 
-	if m.currentView == menuView {
-		// Center the entire menu view in the terminal
-		return lipgloss.Place(
-			m.width,
-			m.height,
+	switch m.currentView {
+	case helpView:
+		return m.centerView(m.help.View())
+	case settingsView:
+		return m.centerView(m.settings.View())
+	case systemPromptView:
+		return m.centerView(m.systemPrompt.View())
+	case conversationListView:
+		return m.conversationList.View()
+	case menuView:
+		return m.centerView(m.menu.View())
+	case promptEditorView:
+		return m.promptEditor.View()
+	case apiKeyEditorView:
+		return m.centerView(m.apiKeyEditor.View())
+	case themeSelectorView:
+		return m.centerView(m.themeSelector.View())
+	case promptSelectionView:
+		return m.promptSelection.View()
+	default:
+		// Remove any spacing in the vertical join
+		return lipgloss.JoinVertical(
 			lipgloss.Center,
-			lipgloss.Center,
-			m.menu.View(),
+			lipgloss.NewStyle().
+				MarginBottom(0).
+				Render(m.chat.View()),
+			lipgloss.NewStyle().
+				MarginTop(0).
+				MarginBottom(0).
+				Render(m.input.View()),
 		)
 	}
-
-	// Show chat view
-	return lipgloss.JoinVertical(
-		lipgloss.Left,
-		m.chat.View(),
-		m.input.View(),
-	)
 }
 
 // Helper function to create a command for getting AI response
@@ -213,5 +546,32 @@ func (m MainModel) getAIResponse(userMsg api.Message) tea.Cmd {
 			return errMsg(err)
 		}
 		return aiResponseMsg(*resp)
+	}
+}
+
+// Add new command function
+func newConversationCmd() tea.Msg {
+	return newConversationMsg{}
+}
+
+// Add helper function to generate title
+func (m MainModel) generateTitle(content string) tea.Cmd {
+	return func() tea.Msg {
+		titlePrompt := fmt.Sprintf(
+			"Please summarize the TEXT below using 3 to 5 words. No talking:\nTEXT:\n%s",
+			content,
+		)
+
+		titleMsg := api.Message{
+			Role:    "user",
+			Content: titlePrompt,
+		}
+
+		resp, err := m.groqClient.SendMessage(titlePrompt, []api.Message{titleMsg})
+		if err != nil {
+			return errMsg(err)
+		}
+
+		return titleResponseMsg(resp.Content)
 	}
 }
