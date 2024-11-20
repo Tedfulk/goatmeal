@@ -595,6 +595,7 @@ type Config struct {
     SystemPrompt  string            `mapstructure:"system_prompt"`  // Current active prompt
     SystemPrompts []string          `mapstructure:"system_prompts"` // List of saved prompts
     Theme         string            `mapstructure:"theme"`
+    Username      string            `mapstructure:"username"`       // Add this line
 }
 
 type ThemeColors struct {
@@ -867,8 +868,8 @@ func (m ThemeConfirmModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
             if err := saveTheme(defaultTheme); err != nil {
                 fmt.Printf("Error saving default theme: %v\n", err)
             }
-            m.quitting = true
-            return m, tea.Quit
+            // Transition to username input
+            return NewUsernameModel(), nil
         case "y", "Y":
             return NewThemeSelectionModel(), nil
         }
@@ -1003,8 +1004,8 @@ func (m ThemeSelectionModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
                     fmt.Printf("Error saving theme: %v\n", err)
                     return m, tea.Quit
                 }
-                // Signal completion by quitting
-                return m, tea.Quit
+                // Transition to username input instead of quitting
+                return NewUsernameModel(), nil
             }
         }
     }
@@ -1217,5 +1218,123 @@ func (c *Config) SetActiveSystemPrompt(prompt string) error {
     }
 
     c.SystemPrompt = prompt
+    return nil
+}
+
+// Add UsernameModel
+type UsernameModel struct {
+    textInput textinput.Model
+    err       error
+    baseStyle lipgloss.Style
+    helpStyle lipgloss.Style
+}
+
+// Add constructor for UsernameModel
+func NewUsernameModel() UsernameModel {
+    ti := textinput.New()
+    ti.Placeholder = "Enter Username"
+    ti.Focus()
+    ti.CharLimit = 50
+    ti.Width = 70
+
+    baseStyle := lipgloss.NewStyle().
+        BorderStyle(lipgloss.RoundedBorder()).
+        BorderForeground(lipgloss.Color("white")).
+        Padding(1).
+        Width(80).
+        BorderTop(true).
+        BorderBottom(true).
+        BorderLeft(true).
+        BorderRight(true)
+
+    helpStyle := lipgloss.NewStyle().
+        Foreground(lipgloss.Color("241")).
+        MarginTop(1).
+        Align(lipgloss.Center)
+
+    return UsernameModel{
+        textInput: ti,
+        err:       nil,
+        baseStyle: baseStyle,
+        helpStyle: helpStyle,
+    }
+}
+
+func (m UsernameModel) Init() tea.Cmd {
+    return textinput.Blink
+}
+
+func (m UsernameModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+    var cmd tea.Cmd
+
+    switch msg := msg.(type) {
+    case tea.KeyMsg:
+        switch msg.String() {
+        case "ctrl+c", "esc":
+            return m, tea.Quit
+        case "enter":
+            username := m.textInput.Value()
+            if err := saveUsername(username); err != nil {
+                m.err = err
+                return m, nil
+            }
+            return m, tea.Quit
+        }
+    }
+
+    m.textInput, cmd = m.textInput.Update(msg)
+    return m, cmd
+}
+
+func (m UsernameModel) View() string {
+    if m.err != nil {
+        return fmt.Sprintf("Error: %v\n\nPress any key to quit.", m.err)
+    }
+
+    titleStyle := lipgloss.NewStyle().
+        Foreground(lipgloss.Color("white")).
+        Padding(0, 1).
+        MarginBottom(0).
+        Width(80).
+        Align(lipgloss.Center)
+
+    styledContent := m.baseStyle.Render(m.textInput.View())
+
+    title := titleStyle.Render("Username")
+
+    helpText := m.helpStyle.Render("Press Enter to submit • Esc to quit")
+
+    content := lipgloss.JoinVertical(
+        lipgloss.Center,
+        title,
+        styledContent,
+        helpText,
+    )
+
+    return lipgloss.Place(
+        terminalWidth,
+        terminalHeight,
+        lipgloss.Center,
+        lipgloss.Center,
+        content,
+    )
+}
+
+// Add helper function to save username
+func saveUsername(username string) error {
+    usr, err := os.UserHomeDir()
+    if err != nil {
+        return fmt.Errorf("error getting home directory: %v", err)
+    }
+    
+    configPath := filepath.Join(usr, ".goatmeal", "config.yaml")
+    
+    viper.SetConfigFile(configPath)
+    viper.Set("username", username)
+    
+    if err := viper.WriteConfig(); err != nil {
+        return fmt.Errorf("error writing config: %v", err)
+    }
+
     return nil
 }

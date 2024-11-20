@@ -2,10 +2,11 @@ package ui
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/tedfulk/goatmeal/api"
 	"github.com/tedfulk/goatmeal/config"
 	"github.com/tedfulk/goatmeal/db"
-	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
