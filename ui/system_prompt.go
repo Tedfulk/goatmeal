@@ -31,16 +31,16 @@ type SystemPromptMsg struct {
 type editorFinishedMsg struct{ err error }
 
 type SystemPromptModel struct {
-	items    []SystemPromptMenuItem
+	items    []SystemPromptItem
 	selected int
 	keys     menuKeyMap
 	width    int
 	height   int
-	config   *config.Config
+	colors   config.ThemeColors
 	err      error
 }
 
-type SystemPromptMenuItem struct {
+type SystemPromptItem struct {
 	title       string
 	description string
 	action      SystemPromptAction
@@ -51,26 +51,18 @@ type SystemPromptSelectedMsg struct {
 	prompt string
 }
 
-func NewSystemPromptMenu(cfg *config.Config) SystemPromptModel {
-	// Create menu items
-	items := []SystemPromptMenuItem{
-		{
-			title:       "Add/Edit System Prompt",
-			description: fmt.Sprintf("Current: %s", truncateString(cfg.SystemPrompt, 30)),
-			action:      EditPrompt,
-		},
-		{
-			title:       "Select Prompt",
-			description: "Choose active system prompt",
-			action:      SelectPrompt,
-		},
-	}
-
+func NewSystemPromptMenu(config *config.Config) SystemPromptModel {
 	return SystemPromptModel{
-		items:    items,
+		items: []SystemPromptItem{
+			{title: "Add New Prompt", action: AddPrompt},
+			{title: "Edit Prompts", action: EditPrompt},
+			{title: "Select Prompt", action: SelectPrompt},
+			{title: "Back", action: Back},
+		},
 		selected: 0,
 		keys:     menuKeys,
-		config:   cfg,
+		colors:   config.GetThemeColors(),
+		err:      nil,
 	}
 }
 
@@ -162,23 +154,23 @@ func (m SystemPromptModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m SystemPromptModel) View() string {
 	titleStyle := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("99")).
+		Foreground(lipgloss.Color(m.colors.MenuTitle)).
 		Padding(1, 0).
 		Align(lipgloss.Center)
 
 	menuStyle := lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("99")).
+		BorderForeground(lipgloss.Color(m.colors.MenuBorder)).
 		Padding(2, 4).
 		Width(80).
 		Align(lipgloss.Center)
 
 	selectedStyle := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("99"))
+		Foreground(lipgloss.Color(m.colors.MenuSelected))
 
 	normalStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("246"))
+		Foreground(lipgloss.Color(m.colors.MenuNormal))
 
 	// Build menu items
 	var menuItems string

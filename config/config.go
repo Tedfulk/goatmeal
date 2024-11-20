@@ -568,44 +568,254 @@ type ThemeColors struct {
     AssistantBubble  string
     AssistantText    string
     Timestamp        string
+    MenuTitle        string
+    MenuBorder       string
+    MenuSelected     string
+    MenuNormal       string
+    MenuDescription  string
 }
 
 // Consolidate into a single theme definition
 var ThemeMap = map[string]ThemeColors{
     "Default": {
-        UserBubble:      "99",  // Light blue
-        UserText:        "15",  // White
-        AssistantBubble: "62",  // Purple
-        AssistantText:  "15",   // White
-        Timestamp:      "240",  // Gray
-    },
-    "Matrix": {
-        UserBubble:      "86",      // Light green
-        UserText:        "15",      // White
-        AssistantBubble: "22",      // Dark green
-        AssistantText:  "15",      // White
-        Timestamp:      "242",     // Gray
+        UserBubble:      "99",   // Light blue
+        UserText:        "15",   // White
+        AssistantBubble: "62",   // Purple
+        AssistantText:   "15",   // White
+        Timestamp:       "240",  // Gray
+        MenuTitle:       "99",   // Light blue
+        MenuBorder:      "62",   // Purple
+        MenuSelected:    "99",   // Light blue
+        MenuNormal:      "240",  // Gray
+        MenuDescription: "240",  // Gray
     },
     "Dracula": {
-        UserBubble:      "141",     // Purple
-        UserText:        "15",      // White
-        AssistantBubble: "61",      // Light purple
-        AssistantText:  "15",      // White
-        Timestamp:      "243",     // Light gray
+        UserBubble:      "141",  // Purple
+        UserText:        "15",   // White
+        AssistantBubble: "61",   // Light purple
+        AssistantText:   "15",   // White
+        Timestamp:       "243",  // Light gray
+        MenuTitle:       "141",  // Purple
+        MenuBorder:      "61",   // Light purple
+        MenuSelected:    "141",  // Purple
+        MenuNormal:      "243",  // Light gray
+        MenuDescription: "243",  // Light gray
     },
-    "Nord": {
-        UserBubble:      "110",     // Blue-green
-        UserText:        "15",      // White
-        AssistantBubble: "109",     // Light blue
-        AssistantText:  "15",      // White
-        Timestamp:      "251",     // Light gray
+    "Forest": {
+        UserBubble:      "28",   // Dark green
+        UserText:        "15",   // White
+        AssistantBubble: "70",   // Light green
+        AssistantText:   "15",   // White
+        Timestamp:       "242",  // Gray
+        MenuTitle:       "28",   // Dark green
+        MenuBorder:      "70",   // Light green
+        MenuSelected:    "28",   // Dark green
+        MenuNormal:      "242",  // Gray
+        MenuDescription: "242",  // Gray
+    },
+    "Matrix": {
+        UserBubble:      "86",   // Light green
+        UserText:        "15",   // White
+        AssistantBubble: "22",   // Dark green
+        AssistantText:   "15",   // White
+        Timestamp:       "242",  // Gray
+        MenuTitle:       "86",   // Light green
+        MenuBorder:      "22",   // Dark green
+        MenuSelected:    "86",   // Light green
+        MenuNormal:      "242",  // Gray
+        MenuDescription: "242",  // Gray
     },
     "Monokai": {
-        UserBubble:      "197",     // Pink
-        UserText:        "15",      // White
-        AssistantBubble: "208",     // Orange
-        AssistantText:  "15",      // White
-        Timestamp:      "252",     // Light gray
+        UserBubble:      "197",  // Pink
+        UserText:        "15",   // White
+        AssistantBubble: "208",  // Orange
+        AssistantText:   "15",   // White
+        Timestamp:       "252",  // Light gray
+        MenuTitle:       "197",  // Pink
+        MenuBorder:      "208",  // Orange
+        MenuSelected:    "197",  // Pink
+        MenuNormal:      "252",  // Light gray
+        MenuDescription: "252",  // Light gray
+    },
+    "Nord": {
+        UserBubble:      "110",  // Blue-green
+        UserText:        "15",   // White
+        AssistantBubble: "109",  // Light blue
+        AssistantText:   "15",   // White
+        Timestamp:       "251",  // Light gray
+        MenuTitle:       "110",  // Blue-green
+        MenuBorder:      "109",  // Light blue
+        MenuSelected:    "110",  // Blue-green
+        MenuNormal:      "251",  // Light gray
+        MenuDescription: "251",  // Light gray
+    },
+    "Ocean": {
+        UserBubble:      "39",   // Deep blue
+        UserText:        "15",   // White
+        AssistantBubble: "31",   // Light blue
+        AssistantText:   "15",   // White
+        Timestamp:       "245",  // Light gray
+        MenuTitle:       "39",   // Deep blue
+        MenuBorder:      "31",   // Light blue
+        MenuSelected:    "39",   // Deep blue
+        MenuNormal:      "245",  // Light gray
+        MenuDescription: "245",  // Light gray
+    },
+    "Sakura": {
+        UserBubble:      "218",  // Light pink
+        UserText:        "15",   // White
+        AssistantBubble: "211",  // Darker pink
+        AssistantText:   "15",   // White
+        Timestamp:       "248",  // Light gray
+        MenuTitle:       "218",  // Light pink
+        MenuBorder:      "211",  // Darker pink
+        MenuSelected:    "218",  // Light pink
+        MenuNormal:      "248",  // Light gray
+        MenuDescription: "248",  // Light gray
+    },
+    "Sunset": {
+        UserBubble:      "203",  // Salmon
+        UserText:        "15",   // White
+        AssistantBubble: "209",  // Orange-pink
+        AssistantText:   "15",   // White
+        Timestamp:       "244",  // Light gray
+        MenuTitle:       "203",  // Salmon
+        MenuBorder:      "209",  // Orange-pink
+        MenuSelected:    "203",  // Salmon
+        MenuNormal:      "244",  // Light gray
+        MenuDescription: "244",  // Light gray
+    },
+    "Synthwave": {
+        UserBubble:      "199",  // Hot pink
+        UserText:        "15",   // White
+        AssistantBubble: "57",   // Purple
+        AssistantText:   "15",   // White
+        Timestamp:       "246",  // Light gray
+        MenuTitle:       "199",  // Hot pink
+        MenuBorder:      "57",   // Purple
+        MenuSelected:    "199",  // Hot pink
+        MenuNormal:      "246",  // Light gray
+        MenuDescription: "246",  // Light gray
+    },
+    "Arctic": {
+        UserBubble:      "159",  // Light cyan
+        UserText:        "15",   // White
+        AssistantBubble: "153",  // Pale blue
+        AssistantText:   "15",   // White
+        Timestamp:       "247",  // Light gray
+        MenuTitle:       "159",  // Light cyan
+        MenuBorder:      "153",  // Pale blue
+        MenuSelected:    "159",  // Light cyan
+        MenuNormal:      "247",  // Light gray
+        MenuDescription: "247",  // Light gray
+    },
+    "Autumn": {
+        UserBubble:      "172",  // Orange
+        UserText:        "15",   // White
+        AssistantBubble: "130",  // Dark orange
+        AssistantText:   "15",   // White
+        Timestamp:       "245",  // Light gray
+        MenuTitle:       "172",  // Orange
+        MenuBorder:      "130",  // Dark orange
+        MenuSelected:    "172",  // Orange
+        MenuNormal:      "245",  // Light gray
+        MenuDescription: "245",  // Light gray
+    },
+    "Cyberpunk": {
+        UserBubble:      "201",  // Bright magenta
+        UserText:        "15",   // White
+        AssistantBubble: "226",  // Yellow
+        AssistantText:   "15",   // White
+        Timestamp:       "244",  // Light gray
+        MenuTitle:       "201",  // Bright magenta
+        MenuBorder:      "226",  // Yellow
+        MenuSelected:    "201",  // Bright magenta
+        MenuNormal:      "244",  // Light gray
+        MenuDescription: "244",  // Light gray
+    },
+    "Desert": {
+        UserBubble:      "180",  // Sand
+        UserText:        "15",   // White
+        AssistantBubble: "173",  // Terracotta
+        AssistantText:   "15",   // White
+        Timestamp:       "245",  // Light gray
+        MenuTitle:       "180",  // Sand
+        MenuBorder:      "173",  // Terracotta
+        MenuSelected:    "180",  // Sand
+        MenuNormal:      "245",  // Light gray
+        MenuDescription: "245",  // Light gray
+    },
+    "Galaxy": {
+        UserBubble:      "105",  // Deep purple
+        UserText:        "15",   // White
+        AssistantBubble: "147",  // Light purple
+        AssistantText:   "15",   // White
+        Timestamp:       "243",  // Light gray
+        MenuTitle:       "105",  // Deep purple
+        MenuBorder:      "147",  // Light purple
+        MenuSelected:    "105",  // Deep purple
+        MenuNormal:      "243",  // Light gray
+        MenuDescription: "243",  // Light gray
+    },
+    "Jade": {
+        UserBubble:      "35",   // Light green
+        UserText:        "15",   // White
+        AssistantBubble: "29",   // Dark green
+        AssistantText:   "15",   // White
+        Timestamp:       "242",  // Light gray
+        MenuTitle:       "35",   // Light green
+        MenuBorder:      "29",   // Dark green
+        MenuSelected:    "35",   // Light green
+        MenuNormal:      "242",  // Light gray
+        MenuDescription: "242",  // Light gray
+    },
+    "Neon": {
+        UserBubble:      "198",  // Hot pink
+        UserText:        "15",   // White
+        AssistantBubble: "48",   // Bright green
+        AssistantText:   "15",   // White
+        Timestamp:       "244",  // Light gray
+        MenuTitle:       "198",  // Hot pink
+        MenuBorder:      "48",   // Bright green
+        MenuSelected:    "198",  // Hot pink
+        MenuNormal:      "244",  // Light gray
+        MenuDescription: "244",  // Light gray
+    },
+    "Ruby": {
+        UserBubble:      "161",  // Deep red
+        UserText:        "15",   // White
+        AssistantBubble: "196",  // Bright red
+        AssistantText:   "15",   // White
+        Timestamp:       "245",  // Light gray
+        MenuTitle:       "161",  // Deep red
+        MenuBorder:      "196",  // Bright red
+        MenuSelected:    "161",  // Deep red
+        MenuNormal:      "245",  // Light gray
+        MenuDescription: "245",  // Light gray
+    },
+    "Sapphire": {
+        UserBubble:      "27",   // Deep blue
+        UserText:        "15",   // White
+        AssistantBubble: "33",   // Bright blue
+        AssistantText:   "15",   // White
+        Timestamp:       "244",  // Light gray
+        MenuTitle:       "27",   // Deep blue
+        MenuBorder:      "33",   // Bright blue
+        MenuSelected:    "27",   // Deep blue
+        MenuNormal:      "244",  // Light gray
+        MenuDescription: "244",  // Light gray
+    },
+    "Vintage": {
+        UserBubble:      "137",  // Brown
+        UserText:        "15",   // White
+        AssistantBubble: "94",   // Dark brown
+        AssistantText:   "15",   // White
+        Timestamp:       "245",  // Light gray
+        MenuTitle:       "137",  // Brown
+        MenuBorder:      "94",   // Dark brown
+        MenuSelected:    "137",  // Brown
+        MenuNormal:      "245",  // Light gray
+        MenuDescription: "245",  // Light gray
     },
 }
 

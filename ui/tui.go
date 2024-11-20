@@ -58,12 +58,14 @@ type MainModel struct {
 	conversationList    ConversationListModel
 	lastView            viewState  // Track the last view for returning from conversation list
 	help                HelpModel
-	settings SettingsModel
-	systemPrompt SystemPromptModel
-	promptEditor PromptEditorModel
-	apiKeyEditor APIKeyEditorModel
-	themeSelector ThemeSelectorModel
-	promptSelection PromptSelectionModel
+	settings            SettingsModel
+	systemPrompt        SystemPromptModel
+	promptEditor        PromptEditorModel
+	apiKeyEditor        APIKeyEditorModel
+	themeSelector       ThemeSelectorModel
+	promptSelection     PromptSelectionModel
+	conversationCreated  bool // Add a flag to track if a conversation is created
+	previewFocused      bool // Track if the preview is focused
 }
 
 func NewMainModel(db db.ChatDB) (MainModel, error) {
@@ -79,14 +81,8 @@ func NewMainModel(db db.ChatDB) (MainModel, error) {
 		return MainModel{}, fmt.Errorf("error creating Groq client: %w", err)
 	}
 
-	// Create initial conversation
-	convID, err := db.CreateConversation()
-	if err != nil {
-		return MainModel{}, fmt.Errorf("failed to create conversation: %w", err)
-	}
-
-	// Initialize chat with config for proper theming
-	chat, err := NewChat(config, db, convID)
+	// Initialize chat without a conversation ID
+	chat, err := NewChat(config, db, "")
 	if err != nil {
 		return MainModel{}, fmt.Errorf("error creating chat view: %w", err)
 	}
@@ -102,24 +98,27 @@ func NewMainModel(db db.ChatDB) (MainModel, error) {
 		return MainModel{}, fmt.Errorf("error listing conversations: %w", err)
 	}
 
+	colors := config.GetThemeColors()
+
 	return MainModel{
 		chat:                chat,
-		input:               NewInput(config.GetThemeColors()),
-		menu:                NewMenu(),
+		input:               NewInput(colors),
+		menu:                NewMenu(colors),
 		currentView:         chatView,
 		spinner:             s,
-		groqClient:         groqClient,
-		config:             config,
-		currentConversation: convID,
-		db:                 db,
-		conversationList:    NewConversationList(conversations),
+		groqClient:          groqClient,
+		config:              config,
+		db:                  db,
+		conversationList:    NewConversationList(conversations, colors, db),
 		lastView:            chatView,
-		help:                NewHelp(),
-		settings: NewSettings(),
-		systemPrompt: NewSystemPromptMenu(config),
-		apiKeyEditor: NewAPIKeyEditor(config.APIKey),
-		themeSelector: NewThemeSelector(),
-		promptSelection: NewPromptSelection(config),
+		help:                NewHelp(colors),
+		settings:            NewSettings(colors),
+		systemPrompt:        NewSystemPromptMenu(config),
+		apiKeyEditor:        NewAPIKeyEditor(config.APIKey),
+		themeSelector:       NewThemeSelector(colors),
+		promptSelection:     NewPromptSelection(config),
+		conversationCreated: false, // Initialize the flag as false
+		previewFocused:      false,  // Initialize preview focus state
 	}, nil
 }
 
@@ -177,17 +176,25 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.currentView == chatView {
 				if m.input.textarea.Focused() {
 					m.input.textarea.Blur()
+					m.chat.focused = true
 				} else {
 					m.input.textarea.Focus()
+					m.chat.focused = false
 				}
+				return m, nil
 			}
-			return m, nil
 		case "ctrl+l":
 			m.lastView = m.currentView
 			m.currentView = conversationListView
+			m.conversationList.initializePreview()
+			conversations, err := m.db.ListConversations()
+			if err == nil {
+				m.conversations = conversations
+				m.conversationList = NewConversationList(conversations, m.config.GetThemeColors(), m.db)
+				m.conversationList.initializePreview()
+			}
 			return m, nil
 		}
-
 		// Handle view-specific updates
 		switch m.currentView {
 		case apiKeyEditorView:
@@ -246,6 +253,24 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.input, cmd = m.input.Update(msg)
 				return m, cmd
 			} else {
+				// Handle capslock in chat view when input is not focused
+				if msg.String() == "capslock" {
+					newChat, err := NewChat(m.config, m.db, "")
+					if err != nil {
+						m.err = err
+						return m, nil
+					}
+
+					// Update all relevant state
+					m.currentConversation = ""
+					m.chat = newChat
+					m.input.textarea.Reset()
+					m.conversationCreated = false
+					m.currentView = chatView
+					m.input.textarea.Focus()
+
+					return m, nil
+				}
 				// Update chat view when input is not focused
 				m.chat, cmd = m.chat.Update(msg)
 				return m, cmd
@@ -271,24 +296,21 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 
 	case NewChatMsg:
-		// Create a new conversation in the database
-		convID, err := m.db.CreateConversation()
+		// Reset the chat view for a new conversation without creating a database record
+		newChat, err := NewChat(m.config, m.db, "")
 		if err != nil {
 			m.err = err
 			return m, nil
 		}
 
-		// Create new chat with the new conversation ID
-		newChat, err := NewChat(m.config, m.db, convID)
-		if err != nil {
-			m.err = err
-			return m, nil
-		}
-
-		// Update the current conversation ID
-		m.currentConversation = convID
+		// Update all relevant state
+		m.currentConversation = "" // No conversation ID yet
 		m.chat = newChat
 		m.input.textarea.Reset()
+		m.conversationCreated = false // Important: mark that no conversation exists in DB yet
+		m.currentView = chatView     // Switch back to chat view
+		m.input.textarea.Focus()     // Focus the input for immediate typing
+
 		return m, nil
 
 	case titleResponseMsg:
@@ -410,14 +432,17 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.config = newConfig
 		
-		// Update chat styles with new theme colors
+		// Get new theme colors
+		colors := newConfig.GetThemeColors()
+		
+		// Create new chat with updated theme
 		newChat, err := NewChat(newConfig, m.db, m.currentConversation)
 		if err != nil {
 			m.err = err
 			return m, nil
 		}
 		
-		// Copy over existing messages and viewport state
+		// Copy over existing messages to the new chat model
 		for _, msg := range m.chat.GetMessages() {
 			if err := newChat.AddMessage(msg); err != nil {
 				m.err = err
@@ -425,29 +450,21 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		
-		// Ensure viewport is properly initialized with current window size
-		newChat.ready = true
-		newChat.width = m.width
-		newChat.height = m.height
-		newChat.viewport.Width = m.width
-		newChat.viewport.Height = m.height - 4  // Account for input height
-		newChat.viewport.SetContent(newChat.renderMessages())
-		
-		// Replace the old chat model with the new one
+		// Update all components with new colors
 		m.chat = newChat
+		m.input = NewInput(colors)
+		m.menu = NewMenu(colors)
+		m.settings = NewSettings(colors)
+		m.help = NewHelp(colors)
+		m.conversationList = NewConversationList(m.conversations, colors, m.db)
+		m.themeSelector = NewThemeSelector(colors)
 		
-		// Create new input model with updated theme
-		m.input = NewInput(newConfig.GetThemeColors())
-		m.input.textarea.SetWidth(m.width - 4)  // Ensure input width is set correctly
-		
-		// Force a window size update to ensure everything is laid out correctly
+		// Force refresh of all components
 		sizeMsg := tea.WindowSizeMsg{
 			Width:  m.width,
 			Height: m.height,
 		}
 		
-		// Return to settings view with a window resize command
-		m.currentView = settingsView
 		return m, func() tea.Msg { return sizeMsg }
 
 	case SystemPromptSelectedMsg:
@@ -459,28 +476,43 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case SendMessageMsg:
+		// Check if a conversation has been created
+		if !m.conversationCreated {
+			// Create a new conversation in the database
+			convID, err := m.db.CreateConversation()
+			if err != nil {
+				m.err = err
+				return m, nil
+			}
+
+			// Update the current conversation ID
+			m.currentConversation = convID
+			m.chat.currentID = convID  // Make sure chat model has the ID
+			m.conversationCreated = true
+		}
+
 		// Create user message
 		userMsg := api.Message{
 			Role:      "user",
 			Content:   msg.content,
 			Timestamp: time.Now(),
 		}
-		
+
 		// Add user message to chat
 		if err := m.chat.AddMessage(userMsg); err != nil {
 			m.err = err
 			return m, nil
 		}
-		
+
 		// Set loading state
 		m.loading = true
-		
+
 		// Generate title for new conversations
 		var cmds []tea.Cmd
 		if len(m.chat.GetMessages()) == 1 {
 			cmds = append(cmds, m.generateTitle(msg.content))
 		}
-		
+
 		// Get AI response
 		cmds = append(cmds, m.getAIResponse(userMsg))
 		return m, tea.Batch(cmds...)

@@ -14,23 +14,25 @@ type ThemeSelectorModel struct {
 	keys      menuKeyMap
 	width     int
 	height    int
+	colors    config.ThemeColors
 }
 
 type ThemeSelectedMsg struct {
 	theme string
 }
 
-func NewThemeSelector() ThemeSelectorModel {
+func NewThemeSelector(colors config.ThemeColors) ThemeSelectorModel {
 	// Get theme names from config.ThemeMap
 	var themes []string
 	for theme := range config.ThemeMap {
-		themes = append(themes, theme)
+		 themes = append(themes, theme)
 	}
 
 	return ThemeSelectorModel{
 		themes:   themes,
 		selected: 0,
 		keys:     menuKeys,
+		colors:   colors,
 	}
 }
 
@@ -79,23 +81,23 @@ func (m ThemeSelectorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m ThemeSelectorModel) View() string {
 	titleStyle := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("99")).
+		Foreground(lipgloss.Color(m.colors.MenuTitle)).
 		Padding(1, 0).
 		Align(lipgloss.Center)
 
 	menuStyle := lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("99")).
+		BorderForeground(lipgloss.Color(m.colors.MenuBorder)).
 		Padding(2, 4).
 		Width(60).
 		Align(lipgloss.Center)
 
 	selectedStyle := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("99"))
+		Foreground(lipgloss.Color(m.colors.MenuSelected))
 
 	normalStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("246"))
+		Foreground(lipgloss.Color(m.colors.MenuNormal))
 
 	// Build theme items
 	var menuItems string

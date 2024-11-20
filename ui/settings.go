@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"goatmeal/config"
+
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -18,6 +20,7 @@ type SettingsModel struct {
 	keys     menuKeyMap // Reuse the same key mappings as main menu
 	width    int
 	height   int
+	colors   config.ThemeColors
 }
 
 // Message type for settings actions
@@ -33,17 +36,18 @@ type SettingsMsg struct {
 	action SettingsAction
 }
 
-func NewSettings() SettingsModel {
+func NewSettings(colors config.ThemeColors) SettingsModel {
 	items := []SettingsMenuItem{
 		{title: "API Key", description: "Edit your API key"},
-		{title: "Theme", description: "Change the application theme"},
+		{title: "Theme", description: "Change application theme"},
 		{title: "System Prompt", description: "Manage system prompts"},
 	}
 
 	return SettingsModel{
-		items:    items,
-		selected: 0,
-		keys:     menuKeys, // Reuse main menu keys
+			items:    items,
+			selected: 0,
+			keys:     menuKeys,
+			colors:   colors,
 	}
 }
 
@@ -96,44 +100,40 @@ func (m SettingsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m SettingsModel) View() string {
-	// Create styles (reusing the same styles as main menu)
+	// Create styles with theme colors
 	titleStyle := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("99")).
+		Foreground(lipgloss.Color(m.colors.MenuTitle)).
 		Padding(1, 0).
 		Align(lipgloss.Center)
 
 	menuStyle := lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("99")).
+		BorderForeground(lipgloss.Color(m.colors.MenuBorder)).
 		Padding(2, 4).
 		Width(60).
 		Align(lipgloss.Center)
 
 	selectedStyle := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("99"))
+		Foreground(lipgloss.Color(m.colors.MenuSelected))
 
 	normalStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("246"))
+		Foreground(lipgloss.Color(m.colors.MenuNormal))
 
 	descriptionStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("241"))
+		Foreground(lipgloss.Color(m.colors.MenuDescription))
 
 	// Build menu items
 	var menuItems string
 	for i, item := range m.items {
-		menuItem := item.title
 		if i == m.selected {
-			menuItem = "▸ " + menuItem
-			menuItem = selectedStyle.Render(menuItem)
+			menuItems += selectedStyle.Render("▸ "+item.title) + "\n"
+			menuItems += descriptionStyle.Render("  "+item.description) + "\n\n"
 		} else {
-			menuItem = "  " + menuItem
-			menuItem = normalStyle.Render(menuItem)
+			menuItems += normalStyle.Render("  "+item.title) + "\n"
+			menuItems += descriptionStyle.Render("  "+item.description) + "\n\n"
 		}
-		
-		menuItem += " " + descriptionStyle.Render(item.description)
-		menuItems += menuItem + "\n"
 	}
 
 	// Create the menu box

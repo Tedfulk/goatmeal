@@ -24,6 +24,7 @@ type ChatModel struct {
 	renderer   *glamour.TermRenderer
 	db         db.ChatDB
 	currentID  string
+	focused    bool
 }
 
 type Style struct {
@@ -64,24 +65,8 @@ func NewChat(config *config.Config, database db.ChatDB, conversationID string) (
 		return ChatModel{}, fmt.Errorf("failed to initialize markdown renderer: %w", err)
 	}
 
-	// Load existing messages for this conversation
-	dbMessages, err := database.GetMessages(conversationID)
-	if err != nil {
-		return ChatModel{}, fmt.Errorf("failed to load messages: %w", err)
-	}
-
-	// Convert db.Message to api.Message
-	var messages []api.Message
-	for _, msg := range dbMessages {
-		messages = append(messages, api.Message{
-			Role:      msg.Role,
-			Content:   msg.Content,
-			Timestamp: msg.CreatedAt,
-		})
-	}
-
 	// Initialize viewport with default size
-	vp := viewport.New(80, 20)  // Default size, will be adjusted on first WindowSizeMsg
+	vp := viewport.New(80, 20)
 	vp.KeyMap = viewport.KeyMap{
 		PageDown: key.NewBinding(
 			key.WithKeys("pgdown", "ctrl+f"),
@@ -109,35 +94,61 @@ func NewChat(config *config.Config, database db.ChatDB, conversationID string) (
 		),
 	}
 
+	// Initialize an empty chat model
 	chat := ChatModel{
-		messages:   messages,
+		messages:   []api.Message{}, // Initialize with empty messages
 		style:     NewStyle(colors),
 		renderer:  renderer,
 		db:        database,
 		currentID: conversationID,
 		viewport:  vp,
+		ready:     true,
 	}
 
-	// Set initial content
+	// Only load messages if we have a valid conversation ID
+	if conversationID != "" {
+		dbMessages, err := database.GetMessages(conversationID)
+		if err != nil {
+			return ChatModel{}, fmt.Errorf("failed to load messages: %w", err)
+		}
+
+		// Convert db.Message to api.Message
+		for _, msg := range dbMessages {
+			messages := api.Message{
+				Role:      msg.Role,
+				Content:   msg.Content,
+				Timestamp: msg.CreatedAt,
+			}
+			// Add each message to the chat
+			if err := chat.AddMessage(messages); err != nil {
+				return ChatModel{}, fmt.Errorf("failed to add message: %w", err)
+			}
+		}
+	}
+
+	// Set initial content (empty for new chat, or loaded messages for existing chat)
 	chat.viewport.SetContent(chat.renderMessages())
 
 	return chat, nil
 }
 
 func (m *ChatModel) AddMessage(msg api.Message) error {
-	// Add message to the database
-	dbMsg := db.Message{
-		ConversationID: m.currentID,
-		Role:          msg.Role,
-		Content:       msg.Content,
-		CreatedAt:     msg.Timestamp,
+	// Only try to add to database if we have a conversation ID
+	if m.currentID != "" {
+		// Add message to the database
+		dbMsg := db.Message{
+			ConversationID: m.currentID,
+			Role:          msg.Role,
+			Content:       msg.Content,
+			CreatedAt:     msg.Timestamp,
+		}
+
+		if err := m.db.AddMessage(m.currentID, dbMsg); err != nil {
+			return fmt.Errorf("failed to persist message: %w", err)
+		}
 	}
 
-	if err := m.db.AddMessage(m.currentID, dbMsg); err != nil {
-		return fmt.Errorf("failed to persist message: %w", err)
-	}
-
-	// Add to in-memory messages
+	// Add to in-memory messages regardless of database state
 	m.messages = append(m.messages, msg)
 	
 	// Update viewport content
@@ -163,19 +174,38 @@ func (m ChatModel) Update(msg tea.Msg) (ChatModel, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "ctrl+b", "pgup":
-			m.viewport.HalfViewUp()
-		case "ctrl+f", "pgdown":
-			m.viewport.HalfViewDown()
-		case "up", "k":
-			m.viewport.LineUp(1)
-		case "down", "j":
-			m.viewport.LineDown(1)
-		case "home":
-			m.viewport.GotoTop()
-		case "end":
-			m.viewport.GotoBottom()
+		// Handle quitting the program
+		if msg.String() == "q" {
+			return m, tea.Quit
+		}
+
+		// Handle new chat shortcut
+		if msg.String() == "shift+:" {
+			return m, func() tea.Msg { return NewChatMsg{} }
+		}
+
+		// Handle focus switching
+		if msg.String() == "tab" {
+			m.focused = !m.focused
+			return m, nil
+		}
+
+		// If viewport is focused, handle scrolling
+		if m.focused {
+			switch msg.String() {
+			case "up", "k":
+				m.viewport.LineUp(1)
+			case "down", "j":
+				m.viewport.LineDown(1)
+			case "ctrl+b", "pgup":
+				m.viewport.HalfViewUp()
+			case "ctrl+f", "pgdown":
+				m.viewport.HalfViewDown()
+			case "home":
+				m.viewport.GotoTop()
+			case "end":
+				m.viewport.GotoBottom()
+			}
 		}
 
 	case tea.WindowSizeMsg:
@@ -200,7 +230,7 @@ func (m ChatModel) Update(msg tea.Msg) (ChatModel, tea.Cmd) {
 		m.viewport.SetContent(m.renderMessages())
 	}
 
-	// Important: Update viewport and capture command
+	// Always update viewport regardless of focus state
 	m.viewport, cmd = m.viewport.Update(msg)
 	cmds = append(cmds, cmd)
 
@@ -212,7 +242,9 @@ func (m ChatModel) View() string {
 		return "\nInitializing..."
 	}
 
-	return m.viewport.View()
+	style := lipgloss.NewStyle()
+
+	return style.Render(m.viewport.View())
 }
 
 func (m ChatModel) renderMessage(msg api.Message) string {

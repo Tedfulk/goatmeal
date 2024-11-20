@@ -148,11 +148,3 @@ func (m PromptSelectionModel) View() string {
         content,
     )
 }
-
-// Helper function for min of two ints
-func min(a, b int) int {
-    if a < b {
-        return a
-    }
-    return b
-} 

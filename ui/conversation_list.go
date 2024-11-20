@@ -2,135 +2,266 @@ package ui
 
 import (
 	"fmt"
+	"goatmeal/config"
 	"goatmeal/db"
-	"time"
+	"strings"
 
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/bubbles/table"
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
-// Define key mappings for the conversation list
-type conversationListKeyMap struct {
-    Up     key.Binding
-    Down   key.Binding
-    Select key.Binding
-    Back   key.Binding
-    Quit   key.Binding
-}
-
-var conversationListKeys = conversationListKeyMap{
-    Up: key.NewBinding(
-        key.WithKeys("up", "k"),
-        key.WithHelp("↑/k", "up"),
-    ),
-    Down: key.NewBinding(
-        key.WithKeys("down", "j"),
-        key.WithHelp("↓/j", "down"),
-    ),
-    Select: key.NewBinding(
-        key.WithKeys("enter"),
-        key.WithHelp("enter", "select conversation"),
-    ),
-    Back: key.NewBinding(
-        key.WithKeys("esc", "tab"),
-        key.WithHelp("esc/tab", "back"),
-    ),
-    Quit: key.NewBinding(
-        key.WithKeys("q", "ctrl+c"),
-        key.WithHelp("q/ctrl+c", "quit"),
-    ),
-}
-
-// Item represents a conversation in the list
-type conversationItem struct {
-    id        string
-    title     string
-    createdAt time.Time
-}
-
-// Implement list.Item interface
-func (i conversationItem) Title() string       { return i.title }
-func (i conversationItem) Description() string { 
-    return fmt.Sprintf("Created: %s", i.createdAt.Format("2006-01-02 15:04:05"))
-}
-func (i conversationItem) FilterValue() string { return i.title }
-
 type ConversationListModel struct {
-    list     list.Model
-    keys     conversationListKeyMap
-    width    int
-    height   int
-    selected string // Currently selected conversation ID
+	table         table.Model
+	preview       viewport.Model
+	selectedConv  string
+	width         int
+	height        int
+	colors        config.ThemeColors
+	db            db.ChatDB
+	renderer      *glamour.TermRenderer
+	conversations []db.Conversation
+	previewFocused bool
 }
 
-func NewConversationList(conversations []db.Conversation) ConversationListModel {
-    // Convert conversations to list items
-    items := make([]list.Item, len(conversations))
-    for i, conv := range conversations {
-        title := conv.Title
-        if title == "" {
-            title = fmt.Sprintf("Conversation %d", i+1)
-        }
-        items[i] = conversationItem{
-            id:        conv.ID,
-            title:     title,
-            createdAt: conv.CreatedAt,
-        }
-    }
+var baseStyle = lipgloss.NewStyle().
+	BorderStyle(lipgloss.RoundedBorder()).
+	BorderForeground(lipgloss.Color("62"))
 
-    // Create new list
-    l := list.New(items, list.NewDefaultDelegate(), 0, 0)
-    l.Title = "Conversations"
-    l.SetShowHelp(true)
-    l.SetFilteringEnabled(true)
-    l.Styles.Title = lipgloss.NewStyle().
-        Foreground(lipgloss.Color("99")).
-        Bold(true).
-        Padding(0, 0, 1, 2)
+func NewConversationList(conversations []db.Conversation, colors config.ThemeColors, database db.ChatDB) ConversationListModel {
+	// Create table rows from conversations
+	rows := make([]table.Row, len(conversations))
+	for i, conv := range conversations {
+		title := conv.Title
+		if title == "" {
+			title = fmt.Sprintf("Conversation %d", i+1)
+		}
+		rows[i] = table.Row{title, conv.ID}
+	}
 
-    return ConversationListModel{
-        list: l,
-        keys: conversationListKeys,
-    }
+	// Define table columns
+	columns := []table.Column{
+		{Title: "Conversations", Width: 30},
+		{Title: "ID", Width: 0}, // Hidden column for ID
+	}
+
+	// Initialize table
+	t := table.New(
+		table.WithColumns(columns),
+		table.WithRows(rows),
+		table.WithFocused(true),
+		table.WithHeight(10),
+	)
+
+	// Style the table
+	s := table.DefaultStyles()
+	s.Header = s.Header.
+		BorderStyle(lipgloss.NormalBorder()).
+		BorderForeground(lipgloss.Color(colors.MenuTitle)).
+		BorderBottom(true).
+		Bold(true)
+	s.Selected = s.Selected.
+		Foreground(lipgloss.Color(colors.MenuSelected)).
+		Bold(true)
+	t.SetStyles(s)
+
+	// Initialize viewport for preview
+	vp := viewport.New(104, 35)
+	vp.Style = lipgloss.NewStyle()
+
+	// Initialize glamour renderer
+	renderer, _ := glamour.NewTermRenderer(
+		glamour.WithAutoStyle(),
+		glamour.WithWordWrap(90),
+	)
+
+	return ConversationListModel{
+		table:          t,
+		preview:        vp,
+		colors:         colors,
+		db:             database,
+		renderer:       renderer,
+		conversations:  conversations,
+		previewFocused: false,
+	}
 }
 
 func (m ConversationListModel) Init() tea.Cmd {
-    return nil
+	return nil
 }
 
 func (m ConversationListModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-    switch msg := msg.(type) {
-    case tea.WindowSizeMsg:
-        m.width = msg.Width
-        m.height = msg.Height
-        m.list.SetSize(msg.Width, msg.Height)
-        return m, nil
+	var cmd tea.Cmd
+	
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+		
+		// Update table size to fit the left panel
+		m.table.SetWidth(m.width/3)
+		m.table.SetHeight(m.height - 4)
+		
+		// Update preview size
+		m.preview.Width = (m.width * 2 / 3) - 4
+		m.preview.Height = m.height - 4
 
-    case tea.KeyMsg:
-        if msg.String() == "esc" {
-            // Return to chat view
-            return m, func() tea.Msg { return ChangeViewMsg(chatView) }
-        }
-        // Handle selection
-        if key.Matches(msg, m.keys.Select) {
-            item, ok := m.list.SelectedItem().(conversationItem)
-            if ok {
-                m.selected = item.id
-                return m, func() tea.Msg { return ConversationSelectedMsg(item.id) }
-            }
-        }
-    }
+		// Force preview update after resize
+		m.updatePreview()
+		
+		return m, nil
 
-    var cmd tea.Cmd
-    m.list, cmd = m.list.Update(msg)
-    return m, cmd
+	case tea.KeyMsg:
+		// Handle quitting the program
+		if msg.String() == "q" {
+			return m, tea.Quit
+		}
+
+		// Handle tab key to switch focus
+		if msg.String() == "tab" {
+			m.previewFocused = !m.previewFocused
+			return m, nil
+		}
+
+		// Handle other keys based on focus
+		if m.previewFocused {
+			// When preview is focused, send key events to viewport
+			var cmd tea.Cmd
+			m.preview, cmd = m.preview.Update(msg)
+			return m, cmd
+		} else {
+			// When table is focused, handle table navigation
+			switch msg.String() {
+			case "esc":
+				return m, func() tea.Msg { return ChangeViewMsg(chatView) }
+			case "up", "down":
+				// Update table first
+				m.table, cmd = m.table.Update(msg)
+				// Then force preview update
+				m.updatePreview()
+				return m, cmd
+			default:
+				m.table, cmd = m.table.Update(msg)
+				m.updatePreview()
+				return m, cmd
+			}
+		}
+	}
+
+	return m, cmd
+}
+
+func (m *ConversationListModel) updatePreview() {
+	selectedRow := m.table.SelectedRow()
+	if len(selectedRow) < 2 {
+		return
+	}
+
+	convID := selectedRow[1] // Get ID from second column
+
+	// First verify the conversation exists
+	conv, err := m.db.GetConversation(convID)
+	if err != nil {
+		m.preview.SetContent("Error loading conversation")
+		return
+	}
+	if conv == nil {
+		m.preview.SetContent("Conversation not found")
+		return
+	}
+
+	messages, err := m.db.GetMessages(convID)
+	if err != nil {
+		m.preview.SetContent("Error loading messages")
+		return
+	}
+
+	if len(messages) == 0 {
+		m.preview.SetContent("No messages in this conversation")
+		return
+	}
+
+	// Initialize the title caser
+	caser := cases.Title(language.English)
+
+	// Convert messages to markdown format
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("# %s\n\n", conv.Title))
+	
+	for _, msg := range messages {
+		sb.WriteString(fmt.Sprintf("## %s\n", caser.String(msg.Role)))
+		sb.WriteString(fmt.Sprintf("%s\n\n", msg.Content))
+	}
+
+	// Render markdown
+	content, err := m.renderer.Render(sb.String())
+	if err != nil {
+		m.preview.SetContent("Error rendering messages")
+		return
+	}
+
+	m.preview.SetContent(content)
+	m.preview.GotoTop()
 }
 
 func (m ConversationListModel) View() string {
-    return m.list.View()
+	// Create a container for the table that stays in the top left
+	tableStyle := lipgloss.NewStyle().
+		Width(m.width/3).
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("62"))
+
+	// Create a container for the preview that fills the right side
+	previewStyle := lipgloss.NewStyle().
+		Width((m.width * 2 / 3) - 4).
+		Height(m.height - 2).
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("62"))
+
+	// Apply focus styles
+	if m.previewFocused {
+		previewStyle = previewStyle.BorderForeground(lipgloss.Color("205"))
+	} else {
+		tableStyle = tableStyle.BorderForeground(lipgloss.Color("205"))
+	}
+
+	tableContainer := tableStyle.Render(m.table.View())
+	previewContainer := previewStyle.Render(m.preview.View())
+
+	// Join the panels horizontally with a small gap
+	return lipgloss.JoinHorizontal(
+		lipgloss.Top,
+		tableContainer,
+		lipgloss.NewStyle().Width(2).Render(""), // Add gap between panels
+		previewContainer,
+	)
 }
 
 // Message types for conversation list events
-type ConversationSelectedMsg string 
+type ConversationSelectedMsg string
+
+// Add this method to initialize the preview with the first conversation
+func (m *ConversationListModel) initializePreview() {
+	// If there are conversations, show the first one
+	if len(m.table.Rows()) > 0 {
+		// Get the first row's conversation ID
+		firstRow := m.table.Rows()[0]
+		if len(firstRow) > 1 {
+			convID := firstRow[1]
+			
+			// Set the table selection to the first row
+			m.table.SetCursor(0)
+			
+			// Update the preview with the first conversation
+			m.selectedConv = convID
+			m.updatePreview()
+			
+			// Make sure the viewport is at the top
+			m.preview.GotoTop()
+		}
+	}
+}

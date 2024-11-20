@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"goatmeal/config"
+
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -49,9 +51,10 @@ type MenuModel struct {
 	quitting    bool
 	width       int
 	height      int
+	colors      config.ThemeColors
 }
 
-func NewMenu() MenuModel {
+func NewMenu(colors config.ThemeColors) MenuModel {
 	items := []MenuItem{
 		{title: "New Conversation", description: "Start a new chat"},
 		{title: "Conversations", description: "View conversation history"},
@@ -64,6 +67,7 @@ func NewMenu() MenuModel {
 		items:    items,
 		selected: 0,
 		keys:     menuKeys,
+		colors:   colors,
 	}
 }
 
@@ -129,29 +133,29 @@ func (m MenuModel) View() string {
 		return "Goodbye!\n"
 	}
 
-	// Create styles
+	// Create styles with theme colors
 	titleStyle := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("99")).
+		Foreground(lipgloss.Color(m.colors.MenuTitle)).
 		Padding(1, 0).
 		Align(lipgloss.Center)
 
 	menuStyle := lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("99")).
+		BorderForeground(lipgloss.Color(m.colors.MenuBorder)).
 		Padding(2, 4).
 		Width(60).
 		Align(lipgloss.Center)
 
 	selectedStyle := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("99"))
+		Foreground(lipgloss.Color(m.colors.MenuSelected))
 
 	normalStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("246"))
+		Foreground(lipgloss.Color(m.colors.MenuNormal))
 
 	descriptionStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("241"))
+		Foreground(lipgloss.Color(m.colors.MenuDescription))
 
 	// Build menu items
 	var menuItems string
@@ -165,7 +169,6 @@ func (m MenuModel) View() string {
 			menuItem = normalStyle.Render(menuItem)
 		}
 		
-		// Add description
 		menuItem += " " + descriptionStyle.Render(item.description)
 		menuItems += menuItem + "\n"
 	}
@@ -188,6 +191,5 @@ func (m MenuModel) View() string {
 		Width(m.width).
 		Align(lipgloss.Center)
 
-	// Center in terminal with outer container
 	return containerStyle.Render(menu)
 } 

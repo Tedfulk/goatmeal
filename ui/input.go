@@ -30,8 +30,8 @@ var inputKeys = inputKeyMap{
 		key.WithHelp("ctrl+c/esc", "quit"),
 	),
 	NewChat: key.NewBinding(
-		key.WithKeys("ctrl+n"),
-		key.WithHelp("ctrl+n", "new chat"),
+		key.WithKeys("capslock"),
+		key.WithHelp("capslock", "new chat"),
 	),
 }
 

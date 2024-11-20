@@ -1,40 +1,22 @@
 package ui
 
 import (
+	"goatmeal/config"
+	"strings"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
 type HelpModel struct {
-	keys     []KeyBinding
-	width    int
-	height   int
+	width  int
+	height int
+	colors config.ThemeColors
 }
 
-type KeyBinding struct {
-	key         string
-	description string
-}
-
-func NewHelp() HelpModel {
+func NewHelp(colors config.ThemeColors) HelpModel {
 	return HelpModel{
-		keys: []KeyBinding{
-			{"ctrl+n", "Start new conversation"},
-			{"ctrl+l", "Show conversation list"},
-			{"shift+tab", "Toggle menu"},
-			{"tab", "Switch focus between chat and input"},
-			{"enter", "Send message"},
-			{"shift+enter", "New line in input"},
-			{"ctrl+c, esc", "Quit"},
-			{"↑/k", "Scroll up in chat/Navigate up in menus"},
-			{"↓/j", "Scroll down in chat/Navigate down in menus"},
-			{"pgup", "Page up in chat"},
-			{"pgdn", "Page down in chat"},
-			{"home", "Scroll to top"},
-			{"end", "Scroll to bottom"},
-			{"/", "Filter conversations (in list view)"},
-			{"esc", "Back to previous view"},
-		},
+		colors: colors,
 	}
 }
 
@@ -60,62 +42,69 @@ func (m HelpModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m HelpModel) View() string {
-	// Create styles
+	// Create styles with theme colors
 	titleStyle := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("99")).
+		Foreground(lipgloss.Color(m.colors.MenuTitle)).
 		Padding(1, 0).
 		Align(lipgloss.Center)
 
 	keyStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("205")).
+		Foreground(lipgloss.Color(m.colors.MenuSelected)).
 		Width(20).
 		Align(lipgloss.Left)
 
 	descStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("252")).
+		Foreground(lipgloss.Color(m.colors.MenuNormal)).
 		PaddingLeft(2)
-
-	footerStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("241")).
-		Width(70).
-		Padding(1, 0).
-		Align(lipgloss.Center)
 
 	menuStyle := lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("99")).
+		BorderForeground(lipgloss.Color(m.colors.MenuBorder)).
 		Padding(2, 4).
 		Width(80).
 		Align(lipgloss.Center)
 
 	// Build help content
-	var menuItems string
-	for _, kb := range m.keys {
-		line := lipgloss.NewStyle().
-			Width(70).
-			Align(lipgloss.Left).
-			Render(
-				lipgloss.JoinHorizontal(
-					lipgloss.Left,
-					keyStyle.Render(kb.key),
-					descStyle.Render(kb.description),
-				),
-			)
-		menuItems += line + "\n"
+	var content strings.Builder
+	content.WriteString(titleStyle.Render("Keyboard Shortcuts"))
+	content.WriteString("\n\n")
+
+	shortcuts := []struct{ key, desc string }{
+		// Navigation
+		{"shift+tab", "Toggle menu"},
+		{"tab", "Toggle focus (in chat/list view)"},
+		{"esc", "Back/Quit"},
+		{"q", "Quit"},
+		
+		// Chat Actions
+		{"enter", "Send message"},
+		{"shift+enter", "New line in message"},
+		{"capslock", "New conversation"},
+		{"ctrl+l", "View conversations"},
+		
+		// Scrolling
+		{"↑/k", "Scroll up"},
+		{"↓/j", "Scroll down"},
+		{"pgup/ctrl+b", "Page up"},
+		{"pgdn/ctrl+f", "Page down"},
+		{"home", "Scroll to top"},
+		{"end", "Scroll to bottom"},
+		
+		// Menu Navigation
+		{"↑/k", "Previous item"},
+		{"↓/j", "Next item"},
+		{"enter", "Select item"},
 	}
 
-	// Create the menu box
-	menu := menuStyle.Render(
-		lipgloss.JoinVertical(
-			lipgloss.Center,
-			titleStyle.Render("Keyboard Shortcuts"),
-			"",
-			menuItems,
-			"",
-			footerStyle.Render("Press 'esc' to go back"),
-		),
-	)
+	for _, s := range shortcuts {
+		line := lipgloss.JoinHorizontal(
+			lipgloss.Left,
+			keyStyle.Render(s.key),
+			descStyle.Render(s.desc),
+		)
+		content.WriteString(line + "\n")
+	}
 
-	return menu
+	return menuStyle.Render(content.String())
 } 
