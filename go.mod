@@ -1,4 +1,4 @@
-module goatmeal
+module github.com/tedfulk/goatmeal
 
 go 1.23.3
 
