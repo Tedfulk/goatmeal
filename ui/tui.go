@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -21,6 +22,8 @@ type titleResponseMsg string
 type SendMessageMsg struct {
 	content string
 }
+type cleanupMsg struct{}
+type themeLoadingMsg struct{}
 
 // Add view states
 type viewState int
@@ -237,6 +240,13 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.help = helpModel.(HelpModel)
 			return m, cmd
 		case themeSelectorView:
+			if m.loading {
+				// Update spinner and get next tick command
+				var cmd tea.Cmd
+				m.spinner, cmd = m.spinner.Update(msg)
+				
+				return m, cmd
+			}
 			var selectorModel tea.Model
 			selectorModel, cmd = m.themeSelector.Update(msg)
 			m.themeSelector = selectorModel.(ThemeSelectorModel)
@@ -253,23 +263,30 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.input, cmd = m.input.Update(msg)
 				return m, cmd
 			} else {
-				// Handle capslock in chat view when input is not focused
-				if msg.String() == "capslock" {
+				// Handle ctrl+a in chat view when input is not focused
+				if msg.String() == "ctrl+a" {
 					newChat, err := NewChat(m.config, m.db, "")
 					if err != nil {
 						m.err = err
 						return m, nil
 					}
 
+					// Create fresh input model with clean state
+					m.input = NewInput(m.config.GetThemeColors())
+
 					// Update all relevant state
 					m.currentConversation = ""
 					m.chat = newChat
-					m.input.textarea.Reset()
 					m.conversationCreated = false
 					m.currentView = chatView
-					m.input.textarea.Focus()
 
-					return m, nil
+					// Force a window resize to ensure proper layout
+					sizeMsg := tea.WindowSizeMsg{
+						Width:  m.width,
+						Height: m.height,
+					}
+
+					return m, func() tea.Msg { return sizeMsg }
 				}
 				// Update chat view when input is not focused
 				m.chat, cmd = m.chat.Update(msg)
@@ -303,15 +320,30 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
+		// Create fresh input model with clean state
+		m.input = NewInput(m.config.GetThemeColors())
+
 		// Update all relevant state
 		m.currentConversation = "" // No conversation ID yet
 		m.chat = newChat
-		m.input.textarea.Reset()
-		m.conversationCreated = false // Important: mark that no conversation exists in DB yet
-		m.currentView = chatView     // Switch back to chat view
-		m.input.textarea.Focus()     // Focus the input for immediate typing
+		m.conversationCreated = false
+		m.currentView = chatView
 
-		return m, nil
+		// Force a window resize to ensure proper layout
+		sizeMsg := tea.WindowSizeMsg{
+			Width:  m.width,
+			Height: m.height,
+		}
+
+		// Create a sequence of commands to ensure clean state
+		return m, tea.Batch(
+			func() tea.Msg { return sizeMsg },
+			textinput.Blink,
+			// Add a delayed cleanup command
+			tea.Tick(10*time.Millisecond, func(time.Time) tea.Msg {
+				return cleanupMsg{}
+			}),
+		)
 
 	case titleResponseMsg:
 		// Update the conversation title in the database
@@ -418,9 +450,13 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case ThemeSelectedMsg:
+		// Start loading state
+		m.loading = true
+		
 		// Save the new theme
 		if err := m.config.SaveTheme(msg.theme); err != nil {
 			m.err = err
+			m.loading = false
 			return m, nil
 		}
 		
@@ -428,6 +464,7 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		newConfig, err := config.LoadConfig()
 		if err != nil {
 			m.err = err
+			m.loading = false
 			return m, nil
 		}
 		m.config = newConfig
@@ -439,6 +476,7 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		newChat, err := NewChat(newConfig, m.db, m.currentConversation)
 		if err != nil {
 			m.err = err
+			m.loading = false
 			return m, nil
 		}
 		
@@ -446,6 +484,7 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		for _, msg := range m.chat.GetMessages() {
 			if err := newChat.AddMessage(msg); err != nil {
 				m.err = err
+				m.loading = false
 				return m, nil
 			}
 		}
@@ -459,13 +498,20 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.conversationList = NewConversationList(m.conversations, colors, m.db)
 		m.themeSelector = NewThemeSelector(colors)
 		
-		// Force refresh of all components
+		// Reset loading state and return to settings view
+		m.loading = false
+		m.currentView = settingsView
+		
+		// Force refresh of all components and keep spinner ticking
 		sizeMsg := tea.WindowSizeMsg{
 			Width:  m.width,
 			Height: m.height,
 		}
 		
-		return m, func() tea.Msg { return sizeMsg }
+		return m, tea.Batch(
+			func() tea.Msg { return sizeMsg },
+			m.spinner.Tick,
+		)
 
 	case SystemPromptSelectedMsg:
 		if err := m.config.SetActiveSystemPrompt(msg.prompt); err != nil {
@@ -476,46 +522,85 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case SendMessageMsg:
-		// Check if a conversation has been created
+		var convID string
+		var err error
+
+		// Store the message content and clear input immediately
+		messageContent := msg.content
+		m.input.Reset()
+
+		// Create conversation if needed and handle the message atomically
 		if !m.conversationCreated {
-			// Create a new conversation in the database
-			convID, err := m.db.CreateConversation()
+			// Convert api.Message to db.Message
+			dbMsg := db.Message{
+				Role:      "user",
+				Content:   messageContent,
+				CreatedAt: time.Now(),
+			}
+			
+			// Create conversation and first message in a single operation
+			 convID, err = m.db.CreateConversationWithMessage(dbMsg)
 			if err != nil {
 				m.err = err
 				return m, nil
 			}
 
-			// Update the current conversation ID
+			// Update model state with new conversation
 			m.currentConversation = convID
-			m.chat.currentID = convID  // Make sure chat model has the ID
+			m.chat.currentID = convID
 			m.conversationCreated = true
+
+			// Initialize new chat with the conversation ID
+			newChat, err := NewChat(m.config, m.db, convID)
+			if err != nil {
+				m.err = err
+				return m, nil
+			}
+			m.chat = newChat
 		}
 
 		// Create user message
 		userMsg := api.Message{
 			Role:      "user",
-			Content:   msg.content,
+			Content:   messageContent,
 			Timestamp: time.Now(),
 		}
 
-		// Add user message to chat
+		// Add message to chat
 		if err := m.chat.AddMessage(userMsg); err != nil {
 			m.err = err
 			return m, nil
 		}
-
-		// Set loading state
-		m.loading = true
-
-		// Generate title for new conversations
-		var cmds []tea.Cmd
-		if len(m.chat.GetMessages()) == 1 {
-			cmds = append(cmds, m.generateTitle(msg.content))
+		
+		// Force a window resize to ensure proper layout
+		sizeMsg := tea.WindowSizeMsg{
+			Width:  m.width,
+			Height: m.height,
 		}
 
-		// Get AI response
-		cmds = append(cmds, m.getAIResponse(userMsg))
-		return m, tea.Batch(cmds...)
+		// Set loading state and get AI response
+		m.loading = true
+
+		// Return multiple commands
+		return m, tea.Batch(
+			func() tea.Msg { return sizeMsg },
+			m.getAIResponse(userMsg),
+			// Only generate title for first message
+			func() tea.Cmd {
+				if len(m.chat.GetMessages()) == 1 {
+					return m.generateTitle(messageContent)
+				}
+				return nil
+			}(),
+		)
+
+	case cleanupMsg:
+		// Force a complete reset of the textarea
+		m.input = NewInput(m.config.GetThemeColors())
+		m.input.textarea.SetValue("")
+		m.input.textarea.Reset()
+		m.input.textarea.Focus()
+		return m, nil
 	}
 
 	return m, tea.Batch(cmds...)
@@ -552,20 +637,42 @@ func (m MainModel) View() string {
 	case apiKeyEditorView:
 		return m.centerView(m.apiKeyEditor.View())
 	case themeSelectorView:
+		if m.loading {
+			spinnerStyle := lipgloss.NewStyle().
+				Padding(1, 0).
+				Foreground(lipgloss.Color("205"))
+			
+			loadingView := spinnerStyle.Render(m.spinner.View() + " Applying theme...")
+			return m.centerView(loadingView)
+		}
 		return m.centerView(m.themeSelector.View())
 	case promptSelectionView:
 		return m.promptSelection.View()
 	default:
-		// Remove any spacing in the vertical join
+		// Chat view with loading state handling
+		chatView := m.chat.View()
+		var inputView string
+
+		if m.loading {
+			// Show spinner instead of input when loading
+			spinnerStyle := lipgloss.NewStyle().
+				Padding(1, 0).
+				Foreground(lipgloss.Color("205"))
+			
+			inputView = spinnerStyle.Render(m.spinner.View() + " Thinking...")
+		} else {
+			inputView = m.input.View()
+		}
+
 		return lipgloss.JoinVertical(
 			lipgloss.Center,
 			lipgloss.NewStyle().
 				MarginBottom(0).
-				Render(m.chat.View()),
+				Render(chatView),
 			lipgloss.NewStyle().
 				MarginTop(0).
 				MarginBottom(0).
-				Render(m.input.View()),
+				Render(inputView),
 		)
 	}
 }

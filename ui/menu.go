@@ -56,7 +56,7 @@ type MenuModel struct {
 
 func NewMenu(colors config.ThemeColors) MenuModel {
 	items := []MenuItem{
-		{title: "New Conversation", description: "Start a new chat"},
+		{title: "New Conversation", description: "Start a new chat (ctrl+a)"},
 		{title: "Conversations", description: "View conversation history"},
 		{title: "Settings", description: "Configure application settings"},
 		{title: "Help", description: "View keyboard shortcuts and help"},

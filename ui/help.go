@@ -80,7 +80,7 @@ func (m HelpModel) View() string {
 		// Chat Actions
 		{"enter", "Send message"},
 		{"shift+enter", "New line in message"},
-		{"capslock", "New conversation"},
+		{"shift+:", "New conversation"},
 		{"ctrl+l", "View conversations"},
 		
 		// Scrolling

@@ -70,7 +70,7 @@ func NewConversationList(conversations []db.Conversation, colors config.ThemeCol
 	t.SetStyles(s)
 
 	// Initialize viewport for preview
-	vp := viewport.New(104, 35)
+	vp := viewport.New(102, 35)
 	vp.Style = lipgloss.NewStyle()
 
 	// Initialize glamour renderer

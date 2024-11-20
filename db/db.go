@@ -11,6 +11,18 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
+// ChatDB interface defines the database operations
+type ChatDB interface {
+	CreateConversation() (string, error)
+	GetConversation(id string) (*Conversation, error)
+	ListConversations() ([]Conversation, error)
+	AddMessage(convID string, msg Message) error
+	GetMessages(convID string) ([]Message, error)
+	UpdateConversationTitle(id string, title string) error
+	Close() error
+	CreateConversationWithMessage(message Message) (string, error)
+}
+
 type SQLiteChatDB struct {
 	db *sql.DB
 }
@@ -214,4 +226,44 @@ func (db *SQLiteChatDB) UpdateConversationTitle(id string, title string) error {
 	}
 
 	return nil
+}
+
+// Add this method to the ChatDB interface
+func (db *SQLiteChatDB) CreateConversationWithMessage(message Message) (string, error) {
+	// Start a transaction
+	tx, err := db.db.Begin()
+	if err != nil {
+		return "", fmt.Errorf("error starting transaction: %w", err)
+	}
+	defer tx.Rollback() // Rollback if we don't commit
+
+	// Create conversation
+	convID := uuid.New().String()
+	now := time.Now()
+
+	// Insert conversation
+	_, err = tx.Exec(`
+		INSERT INTO conversations (id, created_at, updated_at)
+		VALUES (?, ?, ?)
+	`, convID, now, now)
+	if err != nil {
+		return "", fmt.Errorf("error creating conversation: %w", err)
+	}
+
+	// Insert message
+	messageID := uuid.New().String()
+	_, err = tx.Exec(`
+		INSERT INTO messages (id, conversation_id, role, content, created_at)
+		VALUES (?, ?, ?, ?, ?)
+	`, messageID, convID, message.Role, message.Content, message.CreatedAt)
+	if err != nil {
+		return "", fmt.Errorf("error adding message: %w", err)
+	}
+
+	// Commit transaction
+	if err := tx.Commit(); err != nil {
+		return "", fmt.Errorf("error committing transaction: %w", err)
+	}
+
+	return convID, nil
 } 

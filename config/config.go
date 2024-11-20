@@ -385,7 +385,42 @@ func (m SystemPromptConfirmModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
             if err := saveSystemPrompt(defaultSystemPrompt); err != nil {
                 fmt.Printf("Error saving default system prompt: %v\n", err)
             }
-            // Transition to theme selection instead of username
+
+            // Add default prompt to system_prompts list
+            usr, err := os.UserHomeDir()
+            if err != nil {
+                fmt.Printf("Error getting home directory: %v\n", err)
+                return m, tea.Quit
+            }
+            
+            configPath := filepath.Join(usr, ".goatmeal", "config.yaml")
+            viper.SetConfigFile(configPath)
+            
+            // Get existing prompts or initialize empty slice
+            var prompts []string
+            if existingPrompts := viper.GetStringSlice("system_prompts"); len(existingPrompts) > 0 {
+                prompts = existingPrompts
+            }
+            
+            // Add default prompt if it's not already in the list
+            found := false
+            for _, p := range prompts {
+                if p == defaultSystemPrompt {
+                    found = true
+                    break
+                }
+            }
+            if !found {
+                prompts = append(prompts, defaultSystemPrompt)
+            }
+            
+            // Save updated prompts list
+            viper.Set("system_prompts", prompts)
+            if err := viper.WriteConfig(); err != nil {
+                fmt.Printf("Error writing config: %v\n", err)
+            }
+
+            // Transition to theme selection
             return NewThemeConfirmModel(), nil
         case "y", "Y":
             return NewSystemPromptInputModel(), nil
@@ -968,8 +1003,8 @@ func (m ThemeSelectionModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
                     fmt.Printf("Error saving theme: %v\n", err)
                     return m, tea.Quit
                 }
-                // Explicitly transition to theme selection
-                return NewThemeConfirmModel(), nil
+                // Signal completion by quitting
+                return m, tea.Quit
             }
         }
     }

@@ -30,8 +30,8 @@ var inputKeys = inputKeyMap{
 		key.WithHelp("ctrl+c/esc", "quit"),
 	),
 	NewChat: key.NewBinding(
-		key.WithKeys("capslock"),
-		key.WithHelp("capslock", "new chat"),
+		key.WithKeys("ctrl+a"),
+		key.WithHelp("ctrl+a", "new chat"),
 	),
 }
 
@@ -44,34 +44,68 @@ type InputModel struct {
 }
 
 func NewInput(colors config.ThemeColors) InputModel {
+	// Create a clean textarea first
 	ta := textarea.New()
-	ta.Placeholder = "Send a message..."
-	ta.Focus()
-	ta.ShowLineNumbers = false
-	ta.SetWidth(30)
-	ta.SetHeight(2)
+	
+	// Create a completely clean base style by unsetting everything
+	baseStyle := lipgloss.NewStyle().
+		UnsetAlign().
+		UnsetBackground().
+		UnsetBold().
+		UnsetBorderStyle().
+		UnsetForeground().
+		UnsetHeight().
+		UnsetWidth().
+		UnsetPadding().
+		UnsetMargins()
 
-	// Style the textarea with no bottom padding/margin and theme colors
-	ta.FocusedStyle.Base = lipgloss.NewStyle().
+	// Now build our styles on the clean base
+	inputStyle := baseStyle.
 		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color(colors.UserBubble)). // Use theme color for border
-		BorderBackground(lipgloss.Color("0")).  // Black background
-		Padding(0).                            // Remove all padding
-		MarginTop(0).                          // Remove top margin
-		MarginBottom(0).                       // Remove bottom margin
-		MarginLeft(0).                         // Remove left margin
-		MarginRight(0)                         // Remove right margin
+		BorderForeground(lipgloss.Color(colors.UserBubble)).
+		Background(lipgloss.Color("0")).
+		Padding(0).
+		Margin(0)
 
-	ta.BlurredStyle.Base = ta.FocusedStyle.Base
+	// Create clean text style
+	textStyle := lipgloss.NewStyle().
+		UnsetBorderStyle().
+		Foreground(lipgloss.Color(colors.UserText)).
+		Background(lipgloss.Color("0"))
 
-	// Style the text with theme colors
-	ta.FocusedStyle.CursorLine = lipgloss.NewStyle()
-	ta.FocusedStyle.Text = lipgloss.NewStyle().Foreground(lipgloss.Color(colors.UserText)) // Theme text color
-	ta.BlurredStyle.Text = ta.FocusedStyle.Text
+	// Create clean placeholder style
+	placeholderStyle := lipgloss.NewStyle().
+		UnsetBorderStyle().
+		Foreground(lipgloss.Color("240")).
+		Background(lipgloss.Color("0"))
 
-	// Style the placeholder
-	ta.FocusedStyle.Placeholder = lipgloss.NewStyle().Foreground(lipgloss.Color("240")) // Gray placeholder
-	ta.BlurredStyle.Placeholder = ta.FocusedStyle.Placeholder
+	// Create clean cursor style
+	cursorLineStyle := lipgloss.NewStyle().
+		UnsetBorderStyle().
+		Background(lipgloss.Color("0"))
+
+	// Set basic properties
+	ta.ShowLineNumbers = false
+	ta.CharLimit = 0
+	ta.SetWidth(138)
+	ta.SetHeight(2)
+	
+	// Apply our clean styles
+	ta.BlurredStyle.Base = inputStyle
+	ta.BlurredStyle.Text = textStyle
+	ta.BlurredStyle.Placeholder = placeholderStyle
+	
+	ta.FocusedStyle.Base = inputStyle
+	ta.FocusedStyle.Text = textStyle
+	ta.FocusedStyle.Placeholder = placeholderStyle
+	ta.FocusedStyle.CursorLine = cursorLineStyle
+
+	// Set placeholder after styles
+	ta.Placeholder = "Send a message..."
+	
+	// Reset and focus
+	ta.Reset()
+	ta.Focus()
 
 	return InputModel{
 		textarea:    ta,
@@ -99,7 +133,6 @@ func (m InputModel) Update(msg tea.Msg) (InputModel, tea.Cmd) {
 			return m, tea.Quit
 		case key.Matches(msg, m.keyMap.Send):
 			if content := m.textarea.Value(); content != "" {
-				// Create command to send message
 				cmds = append(cmds, func() tea.Msg {
 					return SendMessageMsg{content: content}
 				})
@@ -119,4 +152,37 @@ func (m InputModel) Update(msg tea.Msg) (InputModel, tea.Cmd) {
 
 func (m InputModel) View() string {
 	return m.textarea.View()
+}
+
+func (m *InputModel) Reset() {
+	// Create a fresh textarea
+	ta := textarea.New()
+	ta.Placeholder = m.placeholder
+	ta.ShowLineNumbers = false
+	ta.CharLimit = 0
+	ta.Focus()
+
+	// Copy dimensions
+	ta.SetWidth(m.textarea.Width())
+	ta.SetHeight(m.textarea.Height())
+
+	// Copy styles
+	ta.FocusedStyle = m.textarea.FocusedStyle
+	ta.BlurredStyle = m.textarea.BlurredStyle
+
+	// Ensure cursor line has proper background
+	ta.FocusedStyle.CursorLine = lipgloss.NewStyle().
+		Background(lipgloss.Color("0"))
+
+	// Explicitly clear content
+	ta.SetValue("")
+
+	// Reset internal state
+	ta.Reset()
+
+	// Replace the old textarea
+	m.textarea = ta
+
+	// Force focus to ensure proper state
+	m.textarea.Focus()
 }

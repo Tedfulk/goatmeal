@@ -65,25 +65,9 @@ func NewChat(config *config.Config, database db.ChatDB, conversationID string) (
 		return ChatModel{}, fmt.Errorf("failed to initialize markdown renderer: %w", err)
 	}
 
-	// Initialize viewport with default size
+	// Initialize viewport with default size and position
 	vp := viewport.New(80, 20)
 	vp.KeyMap = viewport.KeyMap{
-		PageDown: key.NewBinding(
-			key.WithKeys("pgdown", "ctrl+f"),
-			key.WithHelp("pgdn/ctrl+f", "page down"),
-		),
-		PageUp: key.NewBinding(
-			key.WithKeys("pgup", "ctrl+b"),
-			key.WithHelp("pgup/ctrl+b", "page up"),
-		),
-		HalfPageUp: key.NewBinding(
-			key.WithKeys("ctrl+u"),
-			key.WithHelp("ctrl+u", "half page up"),
-		),
-		HalfPageDown: key.NewBinding(
-			key.WithKeys("ctrl+d"),
-			key.WithHelp("ctrl+d", "half page down"),
-		),
 		Up: key.NewBinding(
 			key.WithKeys("up", "k"),
 			key.WithHelp("↑/k", "up"),
@@ -94,41 +78,21 @@ func NewChat(config *config.Config, database db.ChatDB, conversationID string) (
 		),
 	}
 
-	// Initialize an empty chat model
+	// Initialize an empty chat model with proper defaults
 	chat := ChatModel{
-		messages:   []api.Message{}, // Initialize with empty messages
+		messages:   []api.Message{},
 		style:     NewStyle(colors),
 		renderer:  renderer,
 		db:        database,
 		currentID: conversationID,
 		viewport:  vp,
 		ready:     true,
+		focused:   false,  // Make sure it starts unfocused
 	}
 
-	// Only load messages if we have a valid conversation ID
-	if conversationID != "" {
-		dbMessages, err := database.GetMessages(conversationID)
-		if err != nil {
-			return ChatModel{}, fmt.Errorf("failed to load messages: %w", err)
-		}
-
-		// Convert db.Message to api.Message
-		for _, msg := range dbMessages {
-			messages := api.Message{
-				Role:      msg.Role,
-				Content:   msg.Content,
-				Timestamp: msg.CreatedAt,
-			}
-			// Add each message to the chat
-			if err := chat.AddMessage(messages); err != nil {
-				return ChatModel{}, fmt.Errorf("failed to add message: %w", err)
-			}
-		}
-	}
-
-	// Set initial content (empty for new chat, or loaded messages for existing chat)
-	chat.viewport.SetContent(chat.renderMessages())
-
+	// Set initial content
+	chat.viewport.SetContent("")  // Start with empty content for new chat
+	
 	return chat, nil
 }
 

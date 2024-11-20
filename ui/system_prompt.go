@@ -132,9 +132,7 @@ func (m SystemPromptModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			selectedItem := m.items[m.selected]
 			switch selectedItem.action {
 			case AddPrompt:
-				return m, func() tea.Msg {
-					return SystemPromptMsg{action: AddPrompt}
-				}
+				return m, openConfigInEditor()
 			case EditPrompt:
 				return m, openConfigInEditor()
 			case SelectPrompt:
@@ -142,8 +140,6 @@ func (m SystemPromptModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, func() tea.Msg {
 					return ChangeViewMsg(promptSelectionView)
 				}
-			case Back:
-				return m, func() tea.Msg { return ChangeViewMsg(settingsView) }
 			}
 		}
 	}
