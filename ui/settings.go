@@ -30,6 +30,8 @@ const (
 	EditAPIKey SettingsAction = iota
 	EditTheme
 	EditSystemPrompt
+	EditUsername
+	EditModel
 )
 
 type SettingsMsg struct {
@@ -39,8 +41,10 @@ type SettingsMsg struct {
 func NewSettings(colors config.ThemeColors) SettingsModel {
 	items := []SettingsMenuItem{
 		{title: "API Key", description: "Edit your API key"},
-		{title: "Theme", description: "Change application theme"},
+		{title: "Model", description: "Change the AI model"},
 		{title: "System Prompt", description: "Manage system prompts"},
+		{title: "Theme", description: "Change application theme"},
+		{title: "Username", description: "Change your username"},
 	}
 
 	return SettingsModel{
@@ -92,6 +96,10 @@ func (m SettingsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, func() tea.Msg { return SettingsMsg{action: EditTheme} }
 			case "System Prompt":
 				return m, func() tea.Msg { return SettingsMsg{action: EditSystemPrompt} }
+			case "Username":
+				return m, func() tea.Msg { return SettingsMsg{action: EditUsername} }
+			case "Model":
+				return m, func() tea.Msg { return SettingsMsg{action: EditModel} }
 			}
 		}
 	}

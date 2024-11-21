@@ -1,8 +1,9 @@
 package ui
 
 import (
-	"github.com/tedfulk/goatmeal/config"
 	"strings"
+
+	"github.com/tedfulk/goatmeal/config"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -49,14 +50,17 @@ func (m HelpModel) View() string {
 		Padding(1, 0).
 		Align(lipgloss.Center)
 
+	// Create fixed-width columns for better alignment
 	keyStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(m.colors.MenuSelected)).
 		Width(20).
-		Align(lipgloss.Left)
+		Align(lipgloss.Right)  // Right align keys
 
 	descStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(m.colors.MenuNormal)).
-		PaddingLeft(2)
+		Width(40).             // Fixed width for descriptions
+		Align(lipgloss.Left)   // Left align descriptions
+		//PaddingLeft(2)        // Remove padding since we'll handle spacing in JoinHorizontal
 
 	menuStyle := lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
@@ -80,16 +84,13 @@ func (m HelpModel) View() string {
 		// Chat Actions
 		{"enter", "Send message"},
 		{"shift+enter", "New line in message"},
-		{"shift+:", "New conversation"},
-		{"ctrl+l", "View conversations"},
-		
+		{"ctrl+l", "List conversations"},
+		{"ctrl+t", "New conversation"},
+		{";", "Go to theme selector"},
+
 		// Scrolling
 		{"↑/k", "Scroll up"},
 		{"↓/j", "Scroll down"},
-		{"pgup/ctrl+b", "Page up"},
-		{"pgdn/ctrl+f", "Page down"},
-		{"home", "Scroll to top"},
-		{"end", "Scroll to bottom"},
 		
 		// Menu Navigation
 		{"↑/k", "Previous item"},
@@ -98,9 +99,11 @@ func (m HelpModel) View() string {
 	}
 
 	for _, s := range shortcuts {
+		// Join the key and description with 2 spaces between them
 		line := lipgloss.JoinHorizontal(
-			lipgloss.Left,
+			lipgloss.Center,  // Center align the joined elements
 			keyStyle.Render(s.key),
+			"  ",  // Add explicit spacing between columns
 			descStyle.Render(s.desc),
 		)
 		content.WriteString(line + "\n")

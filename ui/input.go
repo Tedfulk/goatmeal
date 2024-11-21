@@ -10,10 +10,11 @@ import (
 )
 
 type inputKeyMap struct {
-	Send     key.Binding
-	NewLine  key.Binding
-	Quit     key.Binding
-	NewChat  key.Binding
+	Send         key.Binding
+	NewLine      key.Binding
+	Quit         key.Binding
+	NewChat      key.Binding
+	ThemeSelector key.Binding
 }
 
 var inputKeys = inputKeyMap{
@@ -30,8 +31,12 @@ var inputKeys = inputKeyMap{
 		key.WithHelp("ctrl+c/esc", "quit"),
 	),
 	NewChat: key.NewBinding(
-		key.WithKeys("ctrl+a"),
-		key.WithHelp("ctrl+a", "new chat"),
+		key.WithKeys("ctrl+t"),
+		key.WithHelp("ctrl+t", "new chat"),
+	),
+	ThemeSelector: key.NewBinding(
+		key.WithKeys(";"),
+		key.WithHelp(";", "go to theme selector"),
 	),
 }
 

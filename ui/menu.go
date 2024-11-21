@@ -8,12 +8,27 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+type MenuModel struct {
+	items     []MenuItem
+	selected  int
+	keys      menuKeyMap
+	width     int
+	height    int
+	colors    config.ThemeColors
+	quitting  bool
+	config    *config.Config
+}
+
+type MenuItem struct {
+	title       string
+	description string
+}
+
 type menuKeyMap struct {
-	Up      key.Binding
-	Down    key.Binding
-	Select  key.Binding
-	Back    key.Binding
-	Quit    key.Binding
+	Up     key.Binding
+	Down   key.Binding
+	Select key.Binding
+	Quit   key.Binding
 }
 
 var menuKeys = menuKeyMap{
@@ -29,38 +44,19 @@ var menuKeys = menuKeyMap{
 		key.WithKeys("enter"),
 		key.WithHelp("enter", "select"),
 	),
-	Back: key.NewBinding(
-		key.WithKeys("esc"),
-		key.WithHelp("esc", "back"),
-	),
 	Quit: key.NewBinding(
-		key.WithKeys("q", "ctrl+c"),
-		key.WithHelp("q/ctrl+c", "quit"),
+		key.WithKeys("q"),
+		key.WithHelp("q", "quit"),
 	),
 }
 
-type MenuItem struct {
-	title       string
-	description string
-}
-
-type MenuModel struct {
-	items       []MenuItem
-	selected    int
-	keys        menuKeyMap
-	quitting    bool
-	width       int
-	height      int
-	colors      config.ThemeColors
-}
-
-func NewMenu(colors config.ThemeColors) MenuModel {
+func NewMenu(colors config.ThemeColors, cfg *config.Config) MenuModel {
 	items := []MenuItem{
-		{title: "New Conversation", description: "Start a new chat (ctrl+a)"},
-		{title: "Conversations", description: "View conversation history"},
-		{title: "Settings", description: "Configure application settings"},
-		{title: "Help", description: "View keyboard shortcuts and help"},
-		{title: "Quit", description: "Exit the application"},
+		{title: "New Conversation", description: "Start a new chat (ctrl+t)"},
+		{title: "Conversations", description: "List conversation history (ctrl+l)"},
+		{title: "Settings", description: "Configure settings (shift+tab)"},
+		{title: "Help", description: "View keyboard shortcuts"},
+		{title: "Quit", description: "(ctrl+c, q)"},
 	}
 
 	return MenuModel{
@@ -68,6 +64,7 @@ func NewMenu(colors config.ThemeColors) MenuModel {
 		selected: 0,
 		keys:     menuKeys,
 		colors:   colors,
+		config:   cfg,
 	}
 }
 
@@ -134,6 +131,17 @@ func (m MenuModel) View() string {
 	}
 
 	// Create styles with theme colors
+	welcomeStyle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color(m.colors.MenuTitle)).
+		Padding(0, 0, 1, 0).  // Remove bottom padding
+		Align(lipgloss.Center)
+
+	modelStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(m.colors.MenuDescription)).
+		Padding(0, 0, 1, 0).  // Add padding below the model info
+		Align(lipgloss.Center)
+
 	titleStyle := lipgloss.NewStyle().
 		Bold(true).
 		Foreground(lipgloss.Color(m.colors.MenuTitle)).
@@ -173,7 +181,7 @@ func (m MenuModel) View() string {
 		menuItems += menuItem + "\n"
 	}
 
-	// Create the menu box
+	// Create the menu box without the welcome message
 	menu := menuStyle.Render(
 		lipgloss.JoinVertical(
 			lipgloss.Center,
@@ -191,5 +199,13 @@ func (m MenuModel) View() string {
 		Width(m.width).
 		Align(lipgloss.Center)
 
-	return containerStyle.Render(menu)
+	// Combine welcome message, model info, and menu box
+	return containerStyle.Render(
+		lipgloss.JoinVertical(
+			lipgloss.Center,
+			welcomeStyle.Render("Welcome, " + m.config.Username + "!"),
+			modelStyle.Render("Model: " + m.config.DefaultModel),
+			menu,
+		),
+	)
 } 

@@ -40,6 +40,8 @@ const (
 	apiKeyEditorView
 	themeSelectorView
 	promptSelectionView
+	usernameEditorView
+	modelSelectorView
 )
 
 // MainModel combines all the components of our chat UI
@@ -70,6 +72,8 @@ type MainModel struct {
 	promptSelection     PromptSelectionModel
 	conversationCreated  bool // Add a flag to track if a conversation is created
 	previewFocused      bool // Track if the preview is focused
+	usernameEditor      UsernameEditorModel
+	modelSelector       ModelSelectorModel
 }
 
 func NewMainModel(db db.ChatDB) (MainModel, error) {
@@ -104,10 +108,15 @@ func NewMainModel(db db.ChatDB) (MainModel, error) {
 
 	colors := config.GetThemeColors()
 
+	modelSelector, err := NewModelSelector(colors, config)
+	if err != nil {
+		return MainModel{}, fmt.Errorf("error creating model selector: %w", err)
+	}
+
 	return MainModel{
 		chat:                chat,
 		input:               NewInput(colors),
-		menu:                NewMenu(colors),
+		menu:                NewMenu(colors, config),
 		currentView:         chatView,
 		spinner:             s,
 		groqClient:          groqClient,
@@ -123,6 +132,8 @@ func NewMainModel(db db.ChatDB) (MainModel, error) {
 		promptSelection:     NewPromptSelection(config),
 		conversationCreated: false, // Initialize the flag as false
 		previewFocused:      false,  // Initialize preview focus state
+		usernameEditor:      NewUsernameEditor(config.Username),
+		modelSelector:       modelSelector,
 	}, nil
 }
 
@@ -198,6 +209,8 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.conversationList.initializePreview()
 			}
 			return m, nil
+		case ";":
+			return m, func() tea.Msg { return ChangeViewMsg(themeSelectorView) }
 		}
 		// Handle view-specific updates
 		switch m.currentView {
@@ -257,6 +270,16 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			selectionModel, cmd = m.promptSelection.Update(msg)
 			m.promptSelection = selectionModel.(PromptSelectionModel)
 			return m, cmd
+		case usernameEditorView:
+			var editorModel tea.Model
+			editorModel, cmd = m.usernameEditor.Update(msg)
+			m.usernameEditor = editorModel.(UsernameEditorModel)
+			return m, cmd
+		case modelSelectorView:
+			var selectorModel tea.Model
+			selectorModel, cmd = m.modelSelector.Update(msg)
+			m.modelSelector = selectorModel.(ModelSelectorModel)
+			return m, cmd
 		default:
 			// Chat view updates
 			if m.input.textarea.Focused() {
@@ -264,8 +287,8 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.input, cmd = m.input.Update(msg)
 				return m, cmd
 			} else {
-				// Handle ctrl+a in chat view when input is not focused
-				if msg.String() == "ctrl+a" {
+				// Handle ctrl+t in chat view when input is not focused
+				if msg.String() == "ctrl+t" {
 					newChat, err := NewChat(m.config, m.db, "")
 					if err != nil {
 						m.err = err
@@ -384,6 +407,12 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.lastView = m.currentView
 			m.currentView = systemPromptView
 			return m, nil
+		case EditUsername:
+			m.currentView = usernameEditorView
+			return m, nil
+		case EditModel:
+			m.currentView = modelSelectorView
+			return m, nil
 		}
 
 	case SystemPromptMsg:
@@ -493,7 +522,7 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Update all components with new colors
 		m.chat = newChat
 		m.input = NewInput(colors)
-		m.menu = NewMenu(colors)
+		m.menu = NewMenu(colors, m.config)
 		m.settings = NewSettings(colors)
 		m.help = NewHelp(colors)
 		m.conversationList = NewConversationList(m.conversations, colors, m.db)
@@ -602,6 +631,40 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.input.textarea.Reset()
 		m.input.textarea.Focus()
 		return m, nil
+
+	case UsernameUpdatedMsg:
+		// Save the new username to config
+		if err := m.config.SaveUsername(msg.newUsername); err != nil {
+			m.err = err
+			return m, nil
+		}
+		// Reload config
+		newConfig, err := config.LoadConfig()
+		if err != nil {
+			m.err = err
+			return m, nil
+		}
+		m.config = newConfig
+		// Return to settings view
+		m.currentView = settingsView
+		return m, nil
+
+	case ModelSelectedMsg:
+		// Save the new model to config
+		if err := m.config.SaveDefaultModel(msg.model); err != nil {
+			m.err = err
+			return m, nil
+		}
+		// Reload config
+		newConfig, err := config.LoadConfig()
+		if err != nil {
+			m.err = err
+			return m, nil
+		}
+		m.config = newConfig
+		// Return to settings view
+		m.currentView = settingsView
+		return m, nil
 	}
 
 	return m, tea.Batch(cmds...)
@@ -649,6 +712,10 @@ func (m MainModel) View() string {
 		return m.centerView(m.themeSelector.View())
 	case promptSelectionView:
 		return m.promptSelection.View()
+	case usernameEditorView:
+		return m.centerView(m.usernameEditor.View())
+	case modelSelectorView:
+		return m.centerView(m.modelSelector.View())
 	default:
 		// Chat view with loading state handling
 		chatView := m.chat.View()

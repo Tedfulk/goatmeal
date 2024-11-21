@@ -1274,7 +1274,13 @@ func (m UsernameModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
             return m, tea.Quit
         case "enter":
             username := m.textInput.Value()
-            if err := saveUsername(username); err != nil {
+            // Create a new config instance to save the username
+            config, err := LoadConfig()
+            if err != nil {
+                m.err = err
+                return m, nil
+            }
+            if err := config.SaveUsername(username); err != nil {
                 m.err = err
                 return m, nil
             }
@@ -1320,11 +1326,11 @@ func (m UsernameModel) View() string {
     )
 }
 
-// Add helper function to save username
-func saveUsername(username string) error {
+// Keep this method on the Config struct
+func (c *Config) SaveUsername(username string) error {
     usr, err := os.UserHomeDir()
     if err != nil {
-        return fmt.Errorf("error getting home directory: %v", err)
+        return fmt.Errorf("error getting home directory: %w", err)
     }
     
     configPath := filepath.Join(usr, ".goatmeal", "config.yaml")
@@ -1333,8 +1339,29 @@ func saveUsername(username string) error {
     viper.Set("username", username)
     
     if err := viper.WriteConfig(); err != nil {
-        return fmt.Errorf("error writing config: %v", err)
+        return fmt.Errorf("error writing config: %w", err)
     }
 
+    c.Username = username
     return nil
+}
+
+// Add method to save default model
+func (c *Config) SaveDefaultModel(model string) error {
+	usr, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("error getting home directory: %w", err)
+	}
+	
+	configPath := filepath.Join(usr, ".goatmeal", "config.yaml")
+	
+	viper.SetConfigFile(configPath)
+	viper.Set("default_model", model)
+	
+	if err := viper.WriteConfig(); err != nil {
+		return fmt.Errorf("error writing config: %w", err)
+	}
+
+	c.DefaultModel = model
+	return nil
 }

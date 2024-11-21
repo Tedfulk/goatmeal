@@ -54,7 +54,7 @@ func NewConversationList(conversations []db.Conversation, colors config.ThemeCol
 		table.WithColumns(columns),
 		table.WithRows(rows),
 		table.WithFocused(true),
-		table.WithHeight(10),
+		table.WithHeight(34),
 	)
 
 	// Style the table

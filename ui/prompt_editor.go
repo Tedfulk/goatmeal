@@ -81,7 +81,12 @@ func (m PromptEditorModel) editPrompt() tea.Cmd {
 	return func() tea.Msg {
 		editor := os.Getenv("EDITOR")
 		if editor == "" {
-			editor = "nvim"
+			// Try nvim first, fallback to nano if not found
+			if _, err := exec.LookPath("nvim"); err == nil {
+				editor = "nvim"
+			} else {
+				editor = "nano"
+			}
 		}
 
 		cmd := exec.Command(editor, m.tempFile)
@@ -102,4 +107,4 @@ func (m PromptEditorModel) editPrompt() tea.Cmd {
 
 		return PromptEditedMsg{newPrompt: string(content)}
 	}
-} 
+}

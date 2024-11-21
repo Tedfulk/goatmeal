@@ -144,11 +144,6 @@ func (m ChatModel) Update(msg tea.Msg) (ChatModel, tea.Cmd) {
 			return m, tea.Quit
 		}
 
-		// Handle new chat shortcut
-		if msg.String() == "shift+:" {
-			return m, func() tea.Msg { return NewChatMsg{} }
-		}
-
 		// Handle focus switching
 		if msg.String() == "tab" {
 			m.focused = !m.focused
@@ -162,14 +157,6 @@ func (m ChatModel) Update(msg tea.Msg) (ChatModel, tea.Cmd) {
 				m.viewport.LineUp(1)
 			case "down", "j":
 				m.viewport.LineDown(1)
-			case "ctrl+b", "pgup":
-				m.viewport.HalfViewUp()
-			case "ctrl+f", "pgdown":
-				m.viewport.HalfViewDown()
-			case "home":
-				m.viewport.GotoTop()
-			case "end":
-				m.viewport.GotoBottom()
 			}
 		}
 

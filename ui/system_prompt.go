@@ -73,7 +73,12 @@ func (m SystemPromptModel) Init() tea.Cmd {
 func openConfigInEditor() tea.Cmd {
 	editor := os.Getenv("EDITOR")
 	if editor == "" {
-		editor = "nvim"
+		// Try nvim first, fallback to nano if not found
+		if _, err := exec.LookPath("nvim"); err == nil {
+			editor = "nvim"
+		} else {
+			editor = "nano"
+		}
 	}
 
 	// Get config file path
