@@ -2,11 +2,13 @@ package api
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/tedfulk/goatmeal/config"
@@ -64,16 +66,25 @@ func NewGroqClient(config *config.Config) (*GroqClient, error) {
 }
 
 func (c *GroqClient) SendMessage(userMessage string, conversationHistory []Message) (*Message, error) {
-	// Prepare messages with system prompt and history
-	messages := []Message{
-		{Role: "system", Content: c.systemMsg},
+	// Check if the message is multimodal
+	var messages []Message
+	if strings.Contains(userMessage, `"type": "image_url"`) {
+		// Parse multimodal message without system prompt
+		messages = []Message{
+			{Role: "user", Content: userMessage},
+		}
+	} else {
+		// Prepare messages with system prompt and history
+		messages = []Message{
+			{Role: "system", Content: c.systemMsg},
+		}
+		messages = append(messages, conversationHistory...)
+		messages = append(messages, Message{
+			Role:      "user",
+			Content:   userMessage,
+			Timestamp: time.Now(),
+		})
 	}
-	messages = append(messages, conversationHistory...)
-	messages = append(messages, Message{
-		Role:      "user",
-		Content:   userMessage,
-		Timestamp: time.Now(),
-	})
 
 	reqBody := ChatRequest{
 		Model:    c.model,
@@ -117,4 +128,22 @@ func (c *GroqClient) SendMessage(userMessage string, conversationHistory []Messa
 	// Add timestamp to the response message
 	response.Choices[0].Message.Timestamp = time.Now()
 	return &response.Choices[0].Message, nil
+}
+
+func EncodeImageToBase64(imagePath string) (string, error) {
+	fileInfo, err := os.Stat(imagePath)
+	if err != nil {
+		return "", fmt.Errorf("error accessing image file: %w", err)
+	}
+
+	// Check if the file size exceeds 4MB
+	if fileInfo.Size() > 4*1024*1024 {
+		return "", fmt.Errorf("image file size exceeds 4MB limit")
+	}
+
+	imageData, err := os.ReadFile(imagePath)
+	if err != nil {
+		return "", fmt.Errorf("error reading image file: %w", err)
+	}
+	return base64.StdEncoding.EncodeToString(imageData), nil
 }

@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/tedfulk/goatmeal/api"
@@ -42,6 +43,7 @@ const (
 	promptSelectionView
 	usernameEditorView
 	modelSelectorView
+	imageInputView
 )
 
 // MainModel combines all the components of our chat UI
@@ -74,6 +76,7 @@ type MainModel struct {
 	previewFocused      bool // Track if the preview is focused
 	usernameEditor      UsernameEditorModel
 	modelSelector       ModelSelectorModel
+	imageInput         ImageInputModel
 }
 
 func NewMainModel(db db.ChatDB) (MainModel, error) {
@@ -134,6 +137,7 @@ func NewMainModel(db db.ChatDB) (MainModel, error) {
 		previewFocused:      false,  // Initialize preview focus state
 		usernameEditor:      NewUsernameEditor(config.Username),
 		modelSelector:       modelSelector,
+		imageInput:         NewImageInput(),
 	}, nil
 }
 
@@ -211,6 +215,9 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		case ";":
 			return m, func() tea.Msg { return ChangeViewMsg(themeSelectorView) }
+		case "ctrl+a":
+			m.currentView = imageInputView
+			return m, nil
 		}
 		// Handle view-specific updates
 		switch m.currentView {
@@ -279,6 +286,11 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			var selectorModel tea.Model
 			selectorModel, cmd = m.modelSelector.Update(msg)
 			m.modelSelector = selectorModel.(ModelSelectorModel)
+			return m, cmd
+		case imageInputView:
+			var inputModel tea.Model
+			inputModel, cmd = m.imageInput.Update(msg)
+			m.imageInput = inputModel.(ImageInputModel)
 			return m, cmd
 		default:
 			// Chat view updates
@@ -589,6 +601,58 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.chat = newChat
 		}
 
+		// Check if the message is multimodal
+		if m.chat.currentImagePath != "" {
+			imagePath := m.chat.currentImagePath
+			var imageURL string
+
+			if strings.HasPrefix(imagePath, "http") {
+				imageURL = imagePath
+			} else {
+				// Encode local image to base64
+				base64Image, err := api.EncodeImageToBase64(imagePath)
+				if err != nil {
+					m.err = err
+					return m, nil
+				}
+				imageURL = "data:image/jpeg;base64," + base64Image
+			}
+
+			// Create multimodal message
+			userMsg := api.Message{
+				Role: "user",
+				Content: fmt.Sprintf(`[
+					{"type": "text", "text": "%s"},
+					{"type": "image_url", "image_url": {"url": "%s"}}
+				]`, messageContent, imageURL),
+				Timestamp: time.Now(),
+			}
+
+			// Clear the stored image path after sending
+			m.chat.currentImagePath = ""
+
+			// Add message to chat
+			if err := m.chat.AddMessage(userMsg); err != nil {
+				m.err = err
+				return m, nil
+			}
+
+			// Set loading state and get AI response
+			m.loading = true
+
+			// Return multiple commands
+			return m, tea.Batch(
+				m.getAIResponse(userMsg),
+				// Only generate title for first message
+				func() tea.Cmd {
+					if len(m.chat.GetMessages()) == 1 {
+						return m.generateTitle(userMsg.Content)
+					}
+					return nil
+				}(),
+			)
+		}
+
 		// Create user message
 		userMsg := api.Message{
 			Role:      "user",
@@ -665,6 +729,60 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Return to settings view
 		m.currentView = settingsView
 		return m, nil
+
+	case ImageInputMsg:
+		// Store the image path and context
+		imagePath := msg.imagePath
+		context := msg.context
+
+		// Create multimodal message
+		var imageURL string
+		if strings.HasPrefix(imagePath, "http") {
+			imageURL = imagePath
+		} else {
+			// Encode local image to base64
+			base64Image, err := api.EncodeImageToBase64(imagePath)
+			if err != nil {
+				m.err = err
+				return m, nil
+			}
+			imageURL = "data:image/jpeg;base64," + base64Image
+		}
+
+		userMsg := api.Message{
+			Role: "user",
+			Content: fmt.Sprintf(`[
+				{"type": "text", "text": "%s"},
+				{"type": "image_url", "image_url": {"url": "%s"}}
+			]`, context, imageURL),
+			Timestamp: time.Now(),
+		}
+
+		// Add message to chat
+		if err := m.chat.AddMessage(userMsg); err != nil {
+			m.err = err
+			return m, nil
+		}
+
+		// Clear inputs and switch back to chat view
+		m.imageInput.imageInput.Reset()
+		m.imageInput.contextInput.Reset()
+		m.currentView = chatView
+
+		// Set loading state and get AI response
+		m.loading = true
+
+		// Return multiple commands
+		return m, tea.Batch(
+			m.getAIResponse(userMsg),
+			// Only generate title for first message
+			func() tea.Cmd {
+				if len(m.chat.GetMessages()) == 1 {
+					return m.generateTitle(userMsg.Content)
+				}
+				return nil
+			}(),
+		)
 	}
 
 	return m, tea.Batch(cmds...)
@@ -716,6 +834,8 @@ func (m MainModel) View() string {
 		return m.centerView(m.usernameEditor.View())
 	case modelSelectorView:
 		return m.centerView(m.modelSelector.View())
+	case imageInputView:
+		return m.centerView(m.imageInput.View())
 	default:
 		// Chat view with loading state handling
 		chatView := m.chat.View()

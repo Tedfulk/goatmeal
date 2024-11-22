@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -26,6 +27,7 @@ type ChatModel struct {
 	db         db.ChatDB
 	currentID  string
 	focused    bool
+	currentImagePath string
 }
 
 type Style struct {
@@ -201,25 +203,49 @@ func (m ChatModel) View() string {
 
 func (m ChatModel) renderMessage(msg api.Message) string {
 	timestamp := m.style.Timestamp.Render(msg.Timestamp.Format("15:04"))
-	
+
 	var content string
 	var err error
+	imageAttached := false
+
+	// Check if the message is multimodal
+	if strings.Contains(msg.Content, `"type": "image_url"`) {
+		// Extract the text part from the multimodal message
+		var parts []map[string]interface{}
+		if err := json.Unmarshal([]byte(msg.Content), &parts); err == nil {
+			for _, part := range parts {
+				if part["type"] == "text" {
+					content = part["text"].(string)
+				}
+				if part["type"] == "image_url" {
+					imageAttached = true
+				}
+			}
+		}
+	} else {
+		content = msg.Content
+	}
+
+	// Append image attachment note if applicable
+	if imageAttached {
+		content += "\n📎 image attached"
+	}
 
 	// Calculate max width for messages (70% of viewport width)
 	maxWidth := m.width * 7 / 10
 
 	if msg.Role == "assistant" {
 		// Assistant messages on the left
-		content, err = m.renderer.Render(msg.Content)
+		content, err = m.renderer.Render(content)
 		if err != nil {
 			content = fmt.Sprintf("Error rendering markdown: %v\nOriginal message:\n%s", err, msg.Content)
 		}
-		
+
 		// Create left-aligned message block with padding
 		messageBlock := lipgloss.NewStyle().
 			Width(m.width).
-			PaddingLeft(2).  // Add left padding for assistant messages
-			Align(lipgloss.Left).  // Ensure left alignment
+			PaddingLeft(2).
+			Align(lipgloss.Left).
 			Render(
 				lipgloss.JoinVertical(
 					lipgloss.Left,
@@ -227,33 +253,32 @@ func (m ChatModel) renderMessage(msg api.Message) string {
 						MaxWidth(maxWidth).
 						Render(content),
 					lipgloss.NewStyle().
-						PaddingLeft(4).  // Indent timestamp
+						PaddingLeft(4).
 						Render(timestamp),
 				),
 			)
-		
+
 		return messageBlock + "\n"
 
 	} else {
 		// User messages on the right
-		// Create right-aligned message block
 		messageBlock := lipgloss.NewStyle().
 			Width(m.width).
-			PaddingRight(2).  // Add right padding for user messages
-			Align(lipgloss.Right).  // Ensure right alignment
+			PaddingRight(2).
+			Align(lipgloss.Right).
 			Render(
 				lipgloss.JoinVertical(
 					lipgloss.Right,
 					(m.style.UserBubble).
 						MaxWidth(maxWidth).
-						Align(lipgloss.Right).  // Right align the message content
-						Render(msg.Content),
+						Align(lipgloss.Right).
+						Render(content),
 					lipgloss.NewStyle().
-						PaddingRight(4).  // Indent timestamp
+						PaddingRight(4).
 						Render(timestamp),
 				),
 			)
-		
+
 		return messageBlock + "\n"
 	}
 }
