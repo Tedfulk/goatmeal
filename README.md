@@ -16,7 +16,7 @@ A terminal-based chat application using the Groq API.
 ## Installation
 
 ```bash
-go install github.com/tedfulk/goatmeal@v1.1.0
+go install github.com/tedfulk/goatmeal@v1.1.1
 ```
 
 ## Configuration
