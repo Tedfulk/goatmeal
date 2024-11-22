@@ -3,6 +3,8 @@
 
 A terminal-based chat application using the Groq API.
 
+https://github.com/user-attachments/assets/a21b9fa0-7949-4521-8c34-b047c6d1c30d
+
 ## Features
 
 - Interactive TUI using Bubble Tea
