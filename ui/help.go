@@ -87,6 +87,7 @@ func (m HelpModel) View() string {
 		{"ctrl+l", "List conversations"},
 		{"ctrl+t", "New conversation"},
 		{";", "Go to theme selector"},
+		{"#", "Go to image input"},
 
 		// Scrolling
 		{"↑/k", "Scroll up"},

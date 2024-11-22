@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"strings"
+
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -30,7 +32,7 @@ func NewImageInput(colors config.ThemeColors) ImageInputModel {
 	contextInput.Width = 70
 
 	imageInput := textinput.New()
-	imageInput.Placeholder = "Enter Image URL or Path"
+	imageInput.Placeholder = "Enter Image URL"
 	imageInput.CharLimit = 256
 	imageInput.Width = 70
 
@@ -55,7 +57,7 @@ func (m ImageInputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "esc":
 			return m, func() tea.Msg { return ChangeViewMsg(chatView) }
 		case "enter":
-			if m.imageInput.Value() != "" && m.contextInput.Value() != "" {
+			if strings.HasPrefix(m.imageInput.Value(), "http") && m.contextInput.Value() != "" {
 				return m, func() tea.Msg {
 					return ImageInputMsg{
 						imagePath: m.imageInput.Value(),

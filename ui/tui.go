@@ -215,7 +215,7 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		case ";":
 			return m, func() tea.Msg { return ChangeViewMsg(themeSelectorView) }
-		case "ctrl+a":
+		case "#":
 			m.currentView = imageInputView
 			return m, nil
 		}
@@ -731,24 +731,11 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case ImageInputMsg:
-		// Store the image path and context
-		imagePath := msg.imagePath
+		// Store the image URL and context
+		imageURL := msg.imagePath
 		context := msg.context
 
 		// Create multimodal message
-		var imageURL string
-		if strings.HasPrefix(imagePath, "http") {
-			imageURL = imagePath
-		} else {
-			// Encode local image to base64
-			base64Image, err := api.EncodeImageToBase64(imagePath)
-			if err != nil {
-				m.err = err
-				return m, nil
-			}
-			imageURL = "data:image/jpeg;base64," + base64Image
-		}
-
 		userMsg := api.Message{
 			Role: "user",
 			Content: fmt.Sprintf(`[
@@ -775,7 +762,6 @@ func (m MainModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Return multiple commands
 		return m, tea.Batch(
 			m.getAIResponse(userMsg),
-			// Only generate title for first message
 			func() tea.Cmd {
 				if len(m.chat.GetMessages()) == 1 {
 					return m.generateTitle(userMsg.Content)
