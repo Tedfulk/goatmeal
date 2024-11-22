@@ -6,12 +6,12 @@ A terminal-based chat application using the Groq API.
 ## Features
 
 - Interactive TUI using Bubble Tea
-- Markdown rendering support
+- Markdown rendering support (via [glamour](https://github.com/charmbracelet/glamour))
 - Conversation history
-- Customizable themes
+- Themes (via [lipgloss](https://github.com/charmbracelet/lipgloss))
 - System prompt management
 - SQLite storage for chat history
-- Image input
+- Image input (remote images only, couldn't figure out how to get local image size small enough to send to api)
 
 ## Installation
 
@@ -58,3 +58,9 @@ goatmeal
 | ↑/k | Previous item |
 | ↓/j | Next item |
 | enter | Select item |
+
+## Roadmap
+
+- [ ] Add support for ChatGPT
+- [ ] Add support for conversation export
+- [ ] Add support for file uploads
