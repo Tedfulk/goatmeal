@@ -4,6 +4,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/tedfulk/goatmeal/config"
 )
 
 type ImageInputModel struct {
@@ -13,6 +14,7 @@ type ImageInputModel struct {
 	height       int
 	err          error
 	focused      bool
+	colors       config.ThemeColors
 }
 
 type ImageInputMsg struct {
@@ -20,7 +22,7 @@ type ImageInputMsg struct {
 	context   string
 }
 
-func NewImageInput() ImageInputModel {
+func NewImageInput(colors config.ThemeColors) ImageInputModel {
 	contextInput := textinput.New()
 	contextInput.Placeholder = "Add additional context"
 	contextInput.Focus()
@@ -36,6 +38,7 @@ func NewImageInput() ImageInputModel {
 		imageInput:   imageInput,
 		contextInput: contextInput,
 		focused:      true,
+		colors:       colors,
 	}
 }
 
@@ -85,7 +88,7 @@ func (m ImageInputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m ImageInputModel) View() string {
 	titleStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("white")).
+		Foreground(lipgloss.Color(m.colors.UserText)).
 		Padding(0, 1).
 		MarginBottom(0).
 		Width(80).
@@ -93,12 +96,12 @@ func (m ImageInputModel) View() string {
 
 	baseStyle := lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("white")).
+		BorderForeground(lipgloss.Color(m.colors.UserBubble)).
 		Padding(1).
 		Width(80)
 
 	helpStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("241")).
+		Foreground(lipgloss.Color(m.colors.MenuNormal)).
 		Align(lipgloss.Center)
 
 	content := lipgloss.JoinVertical(

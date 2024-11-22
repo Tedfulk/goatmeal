@@ -4,6 +4,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/tedfulk/goatmeal/config"
 )
 
 type APIKeyEditorModel struct {
@@ -11,13 +12,14 @@ type APIKeyEditorModel struct {
 	width     int
 	height    int
 	err       error
+	colors    config.ThemeColors
 }
 
 type APIKeyUpdatedMsg struct {
 	newKey string
 }
 
-func NewAPIKeyEditor(currentKey string) APIKeyEditorModel {
+func NewAPIKeyEditor(currentKey string, colors config.ThemeColors) APIKeyEditorModel {
 	ti := textinput.New()
 	ti.Placeholder = "Enter API Key"
 	ti.Focus()
@@ -26,6 +28,7 @@ func NewAPIKeyEditor(currentKey string) APIKeyEditorModel {
 
 	return APIKeyEditorModel{
 		textInput: ti,
+		colors:    colors,
 	}
 }
 
@@ -60,7 +63,7 @@ func (m APIKeyEditorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m APIKeyEditorModel) View() string {
 	// Create API Key title style
 	titleStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("white")).
+		Foreground(lipgloss.Color(m.colors.UserText)).
 		Padding(0, 1).
 		MarginBottom(0).
 		Width(80).
@@ -69,13 +72,13 @@ func (m APIKeyEditorModel) View() string {
 	// Create the box with input
 	baseStyle := lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("white")).
+		BorderForeground(lipgloss.Color(m.colors.UserBubble)).
 		Padding(1).
 		Width(80)
 
 	// Help text style
 	helpStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("241")).
+		Foreground(lipgloss.Color(m.colors.MenuNormal)).
 		Align(lipgloss.Center)
 
 	// Combine all elements vertically

@@ -100,14 +100,30 @@ func NewChat(config *config.Config, database db.ChatDB, conversationID string) (
 }
 
 func (m *ChatModel) AddMessage(msg api.Message) error {
+	// Extract only the text part if the message is multimodal
+	var content string
+	if strings.Contains(msg.Content, `"type": "image_url"`) {
+		var parts []map[string]interface{}
+		if err := json.Unmarshal([]byte(msg.Content), &parts); err == nil {
+			for _, part := range parts {
+				if part["type"] == "text" {
+					content = part["text"].(string)
+					break
+				}
+			}
+		}
+	} else {
+		content = msg.Content
+	}
+
 	// Only try to add to database if we have a conversation ID
 	if m.currentID != "" {
 		// Add message to the database
 		dbMsg := db.Message{
 			ConversationID: m.currentID,
-			Role:          msg.Role,
-			Content:       msg.Content,
-			CreatedAt:     msg.Timestamp,
+			Role:           msg.Role,
+			Content:        content, // Store only the text content
+			CreatedAt:      msg.Timestamp,
 		}
 
 		if err := m.db.AddMessage(m.currentID, dbMsg); err != nil {
@@ -117,7 +133,7 @@ func (m *ChatModel) AddMessage(msg api.Message) error {
 
 	// Add to in-memory messages regardless of database state
 	m.messages = append(m.messages, msg)
-	
+
 	// Update viewport content
 	m.viewport.SetContent(m.renderMessages())
 	m.viewport.GotoBottom() // Make sure we scroll to the latest message

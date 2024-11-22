@@ -213,20 +213,20 @@ func (m ConversationListModel) View() string {
 	tableStyle := lipgloss.NewStyle().
 		Width(m.width/3).
 		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("62"))
+		BorderForeground(lipgloss.Color(m.colors.MenuBorder))
 
 	// Create a container for the preview that fills the right side
 	previewStyle := lipgloss.NewStyle().
 		Width((m.width * 2 / 3) - 4).
 		Height(m.height - 2).
 		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("62"))
+		BorderForeground(lipgloss.Color(m.colors.MenuBorder))
 
 	// Apply focus styles
 	if m.previewFocused {
-		previewStyle = previewStyle.BorderForeground(lipgloss.Color("205"))
+		previewStyle = previewStyle.BorderForeground(lipgloss.Color(m.colors.MenuSelected))
 	} else {
-		tableStyle = tableStyle.BorderForeground(lipgloss.Color("205"))
+		tableStyle = tableStyle.BorderForeground(lipgloss.Color(m.colors.MenuSelected))
 	}
 
 	tableContainer := tableStyle.Render(m.table.View())

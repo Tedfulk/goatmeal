@@ -4,6 +4,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/tedfulk/goatmeal/config"
 )
 
 type UsernameEditorModel struct {
@@ -11,13 +12,14 @@ type UsernameEditorModel struct {
 	width     int
 	height    int
 	err       error
+	colors    config.ThemeColors
 }
 
 type UsernameUpdatedMsg struct {
 	newUsername string
 }
 
-func NewUsernameEditor(currentUsername string) UsernameEditorModel {
+func NewUsernameEditor(currentUsername string, colors config.ThemeColors) UsernameEditorModel {
 	ti := textinput.New()
 	ti.Placeholder = "Enter Username"
 	ti.Focus()
@@ -29,6 +31,7 @@ func NewUsernameEditor(currentUsername string) UsernameEditorModel {
 
 	return UsernameEditorModel{
 		textInput: ti,
+		colors:    colors,
 	}
 }
 
@@ -62,7 +65,7 @@ func (m UsernameEditorModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m UsernameEditorModel) View() string {
 	titleStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("white")).
+		Foreground(lipgloss.Color(m.colors.UserText)).
 		Padding(0, 1).
 		MarginBottom(0).
 		Width(80).
@@ -70,12 +73,12 @@ func (m UsernameEditorModel) View() string {
 
 	baseStyle := lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("white")).
+		BorderForeground(lipgloss.Color(m.colors.UserBubble)).
 		Padding(1).
 		Width(80)
 
 	helpStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("241")).
+		Foreground(lipgloss.Color(m.colors.MenuNormal)).
 		Align(lipgloss.Center)
 
 	content := lipgloss.JoinVertical(

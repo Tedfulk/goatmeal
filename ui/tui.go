@@ -130,14 +130,14 @@ func NewMainModel(db db.ChatDB) (MainModel, error) {
 		help:                NewHelp(colors),
 		settings:            NewSettings(colors),
 		systemPrompt:        NewSystemPromptMenu(config),
-		apiKeyEditor:        NewAPIKeyEditor(config.APIKey),
+		apiKeyEditor:        NewAPIKeyEditor(config.APIKey, colors),
 		themeSelector:       NewThemeSelector(colors),
 		promptSelection:     NewPromptSelection(config),
-		conversationCreated: false, // Initialize the flag as false
-		previewFocused:      false,  // Initialize preview focus state
-		usernameEditor:      NewUsernameEditor(config.Username),
+		conversationCreated: false,
+		previewFocused:      false,
+		usernameEditor:      NewUsernameEditor(config.Username, colors),
 		modelSelector:       modelSelector,
-		imageInput:         NewImageInput(),
+		imageInput:          NewImageInput(colors),
 	}, nil
 }
 
