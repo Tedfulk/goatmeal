@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/tedfulk/goatmeal/config"
@@ -16,6 +18,7 @@ type GroqClient struct {
 	httpClient *http.Client
 	model      string
 	systemMsg  string
+	logger     *log.Logger
 }
 
 type Message struct {
@@ -41,12 +44,22 @@ func NewGroqClient(config *config.Config) (*GroqClient, error) {
 		return nil, fmt.Errorf("API key not found in config")
 	}
 
+	// Open or create the log file
+	logFile, err := os.OpenFile("groq_api.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return nil, fmt.Errorf("error opening log file: %w", err)
+	}
+
+	// Create a logger
+	logger := log.New(logFile, "GROQ_API ", log.LstdFlags)
+
 	return &GroqClient{
 		apiKey:     config.APIKey,
 		baseURL:    "https://api.groq.com/openai/v1/chat/completions",
 		httpClient: &http.Client{},
 		model:      config.DefaultModel,
 		systemMsg:  config.SystemPrompt,
+		logger:     logger,
 	}, nil
 }
 
@@ -66,6 +79,9 @@ func (c *GroqClient) SendMessage(userMessage string, conversationHistory []Messa
 		Model:    c.model,
 		Messages: messages,
 	}
+
+	// Log the request payload
+	c.logger.Printf("Sending request to Groq API: %+v\n", reqBody)
 
 	jsonBody, err := json.Marshal(reqBody)
 	if err != nil {
@@ -94,6 +110,9 @@ func (c *GroqClient) SendMessage(userMessage string, conversationHistory []Messa
 	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
 		return nil, fmt.Errorf("error decoding response: %w", err)
 	}
+
+	// Log the response payload
+	c.logger.Printf("Received response from Groq API: %+v\n", response)
 
 	// Add timestamp to the response message
 	response.Choices[0].Message.Timestamp = time.Now()
