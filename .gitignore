@@ -1,3 +1,4 @@
 scripts/
 go.mod.bak
 groq_api.log
+.DS_Store
