@@ -19,7 +19,6 @@ const (
 	AddPrompt SystemPromptAction = iota
 	EditPrompt
 	SelectPrompt
-	Back
 )
 
 // Message type for system prompt actions
@@ -57,7 +56,6 @@ func NewSystemPromptMenu(config *config.Config) SystemPromptModel {
 			{title: "Add New Prompt", action: AddPrompt},
 			{title: "Edit Prompts", action: EditPrompt},
 			{title: "Select Prompt", action: SelectPrompt},
-			{title: "Back", action: Back},
 		},
 		selected: 0,
 		keys:     menuKeys,
