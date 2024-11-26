@@ -2,9 +2,9 @@
 
 set -e  # Exit on error
 
-# Skip if this is a version bump commit
-if git log -1 --pretty=%B | grep -q "Update README for version v"; then
-    echo "Skipping version bump for README update commit"
+# Skip if this is a version bump commit or has [skip version] tag
+if git log -1 --pretty=%B | grep -q "\[skip version\]\|Update README for version v"; then
+    echo "Skipping version bump for version-related commit"
     exit 0
 fi
 
