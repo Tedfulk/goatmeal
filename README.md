@@ -18,7 +18,7 @@ https://github.com/user-attachments/assets/a21b9fa0-7949-4521-8c34-b047c6d1c30d
 ## Installation
 
 ```bash
-go install github.com/tedfulk/goatmeal@v1.1.4
+go install github.com/tedfulk/goatmeal@v1.1.5
 ```
 
 ## Configuration
