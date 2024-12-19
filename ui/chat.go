@@ -278,9 +278,14 @@ func (m ChatModel) renderMessage(msg api.Message) string {
 
 	} else {
 		// User messages on the right
+		content, err = m.renderer.Render(content)
+		if err != nil {
+			content = fmt.Sprintf("Error rendering content: %v\nOriginal message:\n%s", err, msg.Content)
+		}
+
 		messageBlock := lipgloss.NewStyle().
 			Width(m.width).
-			PaddingRight(2).
+			PaddingRight(4).
 			Align(lipgloss.Right).
 			Render(
 				lipgloss.JoinVertical(
