@@ -1,0 +1,20 @@
+api_keys:
+  groq: ""
+  openai: ""
+  claude: ""
+  gemini: ""
+  deepseek: ""
+  tavily: ""
+current_provider: "string"
+current_model: "string"
+system_prompt: "string"
+system_prompts:
+    - title: "string"
+      content: "string"
+    - title: "string"
+      content: "string"
+settings:
+  output_glamour: bool
+  conversation_retention_days: int
+  theme: "string"
+  username: "string"

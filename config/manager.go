@@ -1,0 +1,285 @@
+package config
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+
+	"github.com/spf13/viper"
+)
+
+// SystemPrompt represents a system prompt with a title and content
+type SystemPrompt struct {
+	Title   string `mapstructure:"title"`
+	Content string `mapstructure:"content"`
+}
+
+// Config represents the application configuration
+type Config struct {
+	APIKeys             map[string]string `mapstructure:"api_keys"`
+	CurrentProvider     string           `mapstructure:"current_provider"`
+	CurrentModel        string           `mapstructure:"current_model"`
+	CurrentSystemPrompt string           `mapstructure:"current_system_prompt"`
+	SystemPrompts       []SystemPrompt   `mapstructure:"system_prompts"`
+	Settings           Settings         `mapstructure:"settings"`
+}
+
+// Settings represents application settings
+type Settings struct {
+	OutputGlamour          bool   `mapstructure:"outputglamour"`
+	ConversationRetention  int    `mapstructure:"conversationretention"`
+	Theme                  string `mapstructure:"theme"`
+	Username               string `mapstructure:"username"`
+}
+
+// DefaultSettings contains the default values for settings
+var DefaultSettings = Settings{
+	OutputGlamour:         true,
+	ConversationRetention: 30,
+	Theme:                 "default",
+	Username:             "User",
+}
+
+// Manager handles configuration loading and saving
+type Manager struct {
+	config     *Config
+	configPath string
+	isFirstRun bool
+}
+
+// NewManager creates a new configuration manager
+func NewManager() (*Manager, error) {
+	configDir, err := getConfigDir()
+	if err != nil {
+		return nil, err
+	}
+
+	configPath := filepath.Join(configDir, "config.yaml")
+	isFirstRun := !fileExists(configPath)
+
+	if err := os.MkdirAll(configDir, 0755); err != nil {
+		return nil, fmt.Errorf("error creating config directory: %w", err)
+	}
+
+	viper.SetConfigFile(configPath)
+	viper.SetConfigType("yaml")
+
+	// Set default configuration
+	setDefaultConfig()
+
+	var config Config
+	if !isFirstRun {
+		if err := viper.ReadInConfig(); err != nil {
+			return nil, fmt.Errorf("error reading config: %w", err)
+		}
+		if err := viper.Unmarshal(&config); err != nil {
+			return nil, fmt.Errorf("error parsing config: %w", err)
+		}
+	} else {
+		// For first run, use the default configuration
+		if err := viper.Unmarshal(&config); err != nil {
+			return nil, fmt.Errorf("error creating default config: %w", err)
+		}
+	}
+
+	return &Manager{
+		config:     &config,
+		configPath: configPath,
+		isFirstRun: isFirstRun,
+	}, nil
+}
+
+// IsFirstRun returns whether this is the first time running the application
+func (m *Manager) IsFirstRun() bool {
+	return m.isFirstRun
+}
+
+// Save writes the current configuration to disk
+func (m *Manager) Save() error {
+	if err := viper.WriteConfig(); err != nil {
+		if os.IsNotExist(err) {
+			if err := viper.SafeWriteConfig(); err != nil {
+				return fmt.Errorf("error creating config file: %w", err)
+			}
+		} else {
+			return fmt.Errorf("error saving config: %w", err)
+		}
+	}
+	return nil
+}
+
+// GetConfig returns the current configuration
+func (m *Manager) GetConfig() *Config {
+	return m.config
+}
+
+// SetAPIKey updates an API key in the configuration
+func (m *Manager) SetAPIKey(provider, key string) error {
+	if m.config.APIKeys == nil {
+		m.config.APIKeys = make(map[string]string)
+	}
+	m.config.APIKeys[provider] = key
+	viper.Set("api_keys", m.config.APIKeys)
+	return m.Save()
+}
+
+// GetAPIKey retrieves an API key from the configuration
+func (m *Manager) GetAPIKey(provider string) string {
+	if m.config.APIKeys == nil {
+		return ""
+	}
+	return m.config.APIKeys[provider]
+}
+
+// SetCurrentProvider sets the current provider
+func (m *Manager) SetCurrentProvider(provider string) error {
+	m.config.CurrentProvider = provider
+	viper.Set("current_provider", provider)
+	return m.Save()
+}
+
+// SetCurrentModel sets the current model
+func (m *Manager) SetCurrentModel(model string) error {
+	m.config.CurrentModel = model
+	viper.Set("current_model", model)
+	return m.Save()
+}
+
+// SetCurrentSystemPrompt sets the current system prompt
+func (m *Manager) SetCurrentSystemPrompt(prompt string) error {
+	m.config.CurrentSystemPrompt = prompt
+	viper.Set("current_system_prompt", prompt)
+	return m.Save()
+}
+
+// AddSystemPrompt adds a new system prompt to the configuration
+func (m *Manager) AddSystemPrompt(title, content string) error {
+	prompt := SystemPrompt{
+		Title:   title,
+		Content: content,
+	}
+	m.config.SystemPrompts = append(m.config.SystemPrompts, prompt)
+	viper.Set("system_prompts", m.config.SystemPrompts)
+	return m.Save()
+}
+
+// DeleteSystemPrompt removes a system prompt from the configuration
+func (m *Manager) DeleteSystemPrompt(title string) error {
+	prompts := make([]SystemPrompt, 0)
+	for _, p := range m.config.SystemPrompts {
+		if p.Title != title {
+			prompts = append(prompts, p)
+		}
+	}
+	m.config.SystemPrompts = prompts
+	viper.Set("system_prompts", m.config.SystemPrompts)
+	return m.Save()
+}
+
+// UpdateSettings updates the application settings
+func (m *Manager) UpdateSettings(settings Settings) error {
+	m.config.Settings = settings
+	viper.Set("settings", settings)
+	return m.Save()
+}
+
+// UpdateUsername updates the username in the config file
+func (m *Manager) UpdateUsername(username string) error {
+	viper.Set("username", username)
+	return viper.WriteConfig()
+}
+
+// SetSystemPrompts updates the system prompts in the config file
+func (m *Manager) SetSystemPrompts(prompts []SystemPrompt) error {
+	viper.Set("system_prompts", prompts)
+	return viper.WriteConfig()
+}
+
+// setDefaultConfig sets the default configuration values
+func setDefaultConfig() {
+	// Default API keys (empty)
+	viper.SetDefault("api_keys", map[string]string{
+		"groq":     "",
+		"openai":   "",
+		"claude":   "",
+		"gemini":   "",
+		"deepseek": "",
+		"tavily":   "",
+	})
+
+	// Default current selections
+	viper.SetDefault("current_provider", "")
+	viper.SetDefault("current_model", "")
+	viper.SetDefault("current_system_prompt", "")
+
+	// Default system prompts
+	viper.SetDefault("system_prompts", []SystemPrompt{
+		{
+			Title: "General",
+			Content: "You are a helpful AI assistant. You aim to give accurate, helpful, and concise responses.",
+		},
+		{
+			Title: "Prompted",
+			Content: `## Mission
+
+- You are specialized in prompt engineering, capable of applying key concepts in this field to a variety of scenarios. You will give the user an optimized prompt they can use.
+
+## Essential Information
+
+- Prompt engineering is centered around techniques like few-shot and zero-shot learning, chain-of-thought prompting, and prompt optimization.
+
+## Rules
+
+- You must adhere strictly to the principles of prompt engineering.
+- Specific objectives include understanding few-shot and zero-shot learning, mastering chain-of-thought prompting, and applying prompt optimization techniques.
+
+## Instructions
+
+- Implement chain-of-thought prompting techniques on every output.
+- Your Output will address these key points every response. Objective, Constraints, Essential Information, Identify Pitfalls, Consider Improvements, and finally it will craft the prompt.
+- If no specific topic is given for a task, instruct the user if they have a topic in mind, or else to use placeholder content as a default.`,
+		},
+		{
+			Title: "MacOS Preferences",
+			Content: `You are an AI assistant designed to provide technical assistance tailored to a specific development environment. The user's preferences are as follows:
+
+- **Operating System:** macOS
+- **Shell:** Fish shell. Unless explicitly asked for a bash script, provide commands in fish syntax. Prefer one-liners. If a multi-line command is needed, provide a fish function.
+- **User Permissions:** The user has standard user permissions and is part of the admin group. This implies the user can use sudo for administrative tasks.
+
+When providing commands or instructions, adhere to these preferences. For example:
+
+- For shell commands, provide fish syntax.
+- The user prefers explanations and step-by-step instructions, usually with copyable commands to run in the terminal. The commands can be written in markdown format.
+
+Use chain-of-thought prompting to break down complex tasks into smaller, manageable steps. Explain your reasoning behind the provided solutions.`,
+		},
+	})
+
+	// Default settings
+	viper.SetDefault("settings", DefaultSettings)
+}
+
+// getConfigDir returns the path to the configuration directory
+func getConfigDir() (string, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("error getting home directory: %w", err)
+	}
+	return filepath.Join(homeDir, ".config", "goatmeal"), nil
+}
+
+// fileExists checks if a file exists
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return !os.IsNotExist(err)
+}
+
+// Load loads the configuration from disk
+func Load() (*Config, error) {
+	manager, err := NewManager()
+	if err != nil {
+		return nil, err
+	}
+	return manager.GetConfig(), nil
+} 

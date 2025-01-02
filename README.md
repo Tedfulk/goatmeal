@@ -1,68 +1,126 @@
+# Goatmeal - Terminal AI Chat & Web Search
 
-# Goatmeal
-
-A terminal-based chat application using the Groq API.
-
-https://github.com/user-attachments/assets/a21b9fa0-7949-4521-8c34-b047c6d1c30d
+Goatmeal is a powerful terminal-based application that provides access to various AI chat providers and web search capabilities, all within your terminal.
 
 ## Features
 
-- Interactive TUI using Bubble Tea
-- Markdown rendering support (via [glamour](https://github.com/charmbracelet/glamour))
-- Conversation history
-- Themes (via [lipgloss](https://github.com/charmbracelet/lipgloss))
-- System prompt management
-- SQLite storage for chat history
-- Image input (remote images only, couldn't figure out how to get local image size small enough to send to api)
+- **Multiple AI Providers Support**
+  - OpenAI (GPT-4, GPT-3.5)
+  - Claude
+  - Gemini
+  - Deepseek
+  - Groq
+- **Web Search Integration**
+  - Tavily search integration
+- **User-Friendly Terminal UI**
+  - Built with Bubble Tea and Bubbles
+  - Beautiful styling with Lipgloss
+  - Markdown rendering with Glamour
+- **Conversation Management**
+  - SQLite-based conversation storage
+  - 30-day retention policy
+  - Easy conversation browsing
+- **Configuration**
+  - YAML-based configuration
+  - Secure API key storage
+  - Customizable system prompts
+  - Model selection per provider
 
 ## Installation
 
 ```bash
-go install github.com/tedfulk/goatmeal@v1.1.12
+go install github.com/tedfulk/goatmeal@latest
 ```
 
 ## Configuration
 
-On first run, Goatmeal will prompt you to:
+On first run, Goatmeal will guide you through the setup process. You'll need to provide API keys for the services you want to use.
 
-1. Enter your Groq [API key](https://console.groq.com/keys)
-2. Select a default model
-3. Configure system prompt
-4. Choose a theme
-5. Enter your username
+Configuration is stored in `~/.config/goatmeal/config.yaml`:
 
-Configuration is stored in `~/.goatmeal/config.yaml`
+```yaml
+api_keys:
+  openai: "your-api-key"
+  claude: "your-api-key"
+  gemini: "your-api-key"
+  deepseek: "your-api-key"
+  groq: "your-api-key"
+  tavily: "your-api-key"
+
+system_prompts:
+  default: "You are a helpful assistant."
+  code_helper: "You are an expert code assistant."
+  creative: "You are a creative assistant."
+
+settings:
+  output_glamour: true
+  default_models:
+    openai: "gpt-4-turbo-preview"
+    claude: "claude-3-opus"
+    gemini: "gemini-pro"
+    deepseek: "deepseek-coder"
+    groq: "mixtral-8x7b-32768"
+```
 
 ## Usage
 
-Simply run:
+### Basic Commands
 
-```bash
-goatmeal
+- Start the application:
+  ```bash
+  goatmeal
+  ```
+
+### Keyboard Shortcuts
+
+- `Ctrl+C` or `q`: Quit
+- `Ctrl+S`: Open settings
+- `Enter`: Send message
+- `Up/Down`: Navigate conversation history
+- `Tab`: Switch between input and conversation view
+
+## Development
+
+### Prerequisites
+
+- Go 1.23 or higher
+- SQLite
+
+### Building from Source
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/tedfulk/goatmeal.git
+   cd goatmeal
+   ```
+
+2. Install dependencies:
+   ```bash
+   go mod download
+   ```
+
+3. Build:
+   ```bash
+   go build
+   ```
+
+### Project Structure
+
+```
+goatmeal/
+├── config/           # Configuration management
+├── chat/
+│   └── providers/    # AI provider implementations
+├── search/          # Web search integration
+├── database/        # SQLite database management
+├── ui/             # Terminal UI components
+└── main.go         # Application entry point
 ```
 
-## Shortcuts
+## Contributing
 
-| Shortcut | Action |
-| --- | --- |
-| shift+tab | Toggle menu |
-| tab | Toggle focus (in chat/list view) |
-| esc | Back/Quit |
-| q | Quit |
-| enter | Send message |
-| shift+enter | New line in message |
-| ctrl+l | List conversations |
-| ctrl+t | New conversation |
-| ; | Go to theme selector |
-| # | Go to image input |
-| ↑/k | Scroll up |
-| ↓/j | Scroll down |
-| ↑/k | Previous item |
-| ↓/j | Next item |
-| enter | Select item |
+Contributions are welcome! Please feel free to submit a Pull Request.
 
-## Roadmap
+## License
 
-- [ ] Add support for ChatGPT
-- [ ] Add support for conversation export
-- [ ] Add support for file uploads
+MIT License - see [LICENSE](LICENSE) for details. 

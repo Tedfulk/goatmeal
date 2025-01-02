@@ -1,166 +1,122 @@
 package ui
 
 import (
-	"github.com/tedfulk/goatmeal/config"
-
 	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
 
-// Settings menu items
 type SettingsMenuItem struct {
 	title       string
 	description string
 }
 
-type SettingsModel struct {
-	items    []SettingsMenuItem
-	selected int
-	keys     menuKeyMap // Reuse the same key mappings as main menu
-	width    int
-	height   int
-	colors   config.ThemeColors
+func (i SettingsMenuItem) Title() string       { return i.title }
+func (i SettingsMenuItem) Description() string { return i.description }
+func (i SettingsMenuItem) FilterValue() string { return i.title }
+
+type SettingsMenu struct {
+	list        list.Model
+	width       int
+	height      int
+	currentView string
 }
 
-// Message type for settings actions
-type SettingsAction int
-
-const (
-	EditAPIKey SettingsAction = iota
-	EditTheme
-	EditSystemPrompt
-	EditUsername
-	EditModel
-)
-
-type SettingsMsg struct {
-	action SettingsAction
-}
-
-func NewSettings(colors config.ThemeColors) SettingsModel {
-	items := []SettingsMenuItem{
-		{title: "API Key", description: "Edit your API key"},
-		{title: "Model", description: "Change the AI model"},
-		{title: "System Prompt", description: "Manage system prompts"},
-		{title: "Theme", description: "Change application theme"},
-		{title: "Username", description: "Change your username"},
+func NewSettingsMenu() SettingsMenu {
+	items := []list.Item{
+		SettingsMenuItem{title: "API Keys", description: "Configure API keys for providers"},
+		SettingsMenuItem{title: "System Prompts", description: "Manage system prompts"},
+		SettingsMenuItem{title: "Theme (TODO)", description: "Change application theme"},
+		SettingsMenuItem{title: "Glamour", description: "Configure markdown formatting"},
+		SettingsMenuItem{title: "Username", description: "Change your username"},
 	}
 
-	return SettingsModel{
-			items:    items,
-			selected: 0,
-			keys:     menuKeys,
-			colors:   colors,
+	l := list.New(items, list.NewDefaultDelegate(), 0, 0)
+	l.Title = ""
+	l.SetShowHelp(true)
+	l.AdditionalShortHelpKeys = func() []key.Binding {
+		return []key.Binding{
+			key.NewBinding(
+				key.WithKeys("esc"),
+				key.WithHelp("esc", "back"),
+			),
+		}
+	}
+	l.AdditionalFullHelpKeys = l.AdditionalShortHelpKeys
+	l.SetFilteringEnabled(false)
+	l.Styles.Title = lipgloss.NewStyle().
+		Foreground(primaryColor).
+		Bold(true).
+		Padding(0, 0, 1, 2)
+
+	return SettingsMenu{
+		list: l,
+		currentView: "settings",
 	}
 }
 
-func (m SettingsModel) Init() tea.Cmd {
-	return nil
-}
+func (s SettingsMenu) Update(msg tea.Msg) (SettingsMenu, tea.Cmd) {
+	var cmd tea.Cmd
 
-func (m SettingsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
-		return m, nil
-
 	case tea.KeyMsg:
-		if msg.String() == "q" {
-			return m, tea.Quit
-		}
-
-		if msg.String() == "esc" {
-			return m, func() tea.Msg { return ChangeViewMsg(menuView) }
-		}
-
-		switch {
-		case key.Matches(msg, m.keys.Up):
-			m.selected--
-			if m.selected < 0 {
-				m.selected = len(m.items) - 1
-			}
-
-		case key.Matches(msg, m.keys.Down):
-			m.selected++
-			if m.selected >= len(m.items) {
-				m.selected = 0
-			}
-
-		case key.Matches(msg, m.keys.Select):
-			switch m.items[m.selected].title {
-			case "API Key":
-				return m, func() tea.Msg { return SettingsMsg{action: EditAPIKey} }
-			case "Theme":
-				return m, func() tea.Msg { return SettingsMsg{action: EditTheme} }
-			case "System Prompt":
-				return m, func() tea.Msg { return SettingsMsg{action: EditSystemPrompt} }
+		if msg.Type == tea.KeyEnter {
+			selected := s.list.SelectedItem().(SettingsMenuItem)
+			switch selected.title {
+			case "API Keys":
+				s.currentView = "apikeys"
+			case "System Prompts":
+				s.currentView = "systemprompts"
+			case "Theme (TODO)":
+				// TODO: Implement theme settings
+				s.currentView = "settings"
+			case "Glamour":
+				s.currentView = "glamour"
 			case "Username":
-				return m, func() tea.Msg { return SettingsMsg{action: EditUsername} }
-			case "Model":
-				return m, func() tea.Msg { return SettingsMsg{action: EditModel} }
+				s.currentView = "username"
 			}
+			return s, nil
 		}
 	}
 
-	return m, nil
+	s.list, cmd = s.list.Update(msg)
+	return s, cmd
 }
 
-func (m SettingsModel) View() string {
-	// Create styles with theme colors
-	titleStyle := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color(m.colors.MenuTitle)).
-		Padding(1, 0).
-		Align(lipgloss.Center)
-
+func (m SettingsMenu) View() string {
+	// Create a style for the menu container
 	menuStyle := lipgloss.NewStyle().
-		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color(m.colors.MenuBorder)).
-		Padding(2, 4).
-		Width(60).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(primaryColor).
+		Padding(1, 2).
+		Width(50)
+
+	// Create the menu content with centered title
+	titleStyle := lipgloss.NewStyle().
+		Foreground(primaryColor).
+		Bold(true).
+		Width(46).
 		Align(lipgloss.Center)
 
-	selectedStyle := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color(m.colors.MenuSelected))
-
-	normalStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(m.colors.MenuNormal))
-
-	descriptionStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(m.colors.MenuDescription))
-
-	// Build menu items
-	var menuItems string
-	for i, item := range m.items {
-		if i == m.selected {
-			menuItems += selectedStyle.Render("▸ "+item.title) + "\n"
-			menuItems += descriptionStyle.Render("  "+item.description) + "\n\n"
-		} else {
-			menuItems += normalStyle.Render("  "+item.title) + "\n"
-			menuItems += descriptionStyle.Render("  "+item.description) + "\n\n"
-		}
-	}
-
-	// Create the menu box
-	menu := menuStyle.Render(
-		lipgloss.JoinVertical(
-			lipgloss.Center,
-			titleStyle.Render("Settings"),
-			"",
-			menuItems,
-			"",
-			descriptionStyle.Render("↑/↓: navigate • enter: select • esc: back • q: quit"),
-		),
+	menuContent := lipgloss.JoinVertical(
+		lipgloss.Left,
+		titleStyle.Render("Settings"),
+		m.list.View(),
 	)
 
-	// Create outer container with additional padding
-	containerStyle := lipgloss.NewStyle().
-		Padding(4, 0).
-		Width(m.width).
-		Align(lipgloss.Center)
+	// Center the menu in the window
+	return lipgloss.Place(
+		m.width,
+		m.height,
+		lipgloss.Center,
+		lipgloss.Center,
+		menuStyle.Render(menuContent),
+	)
+}
 
-	return containerStyle.Render(menu)
+func (m *SettingsMenu) SetSize(width, height int) {
+	m.width = width
+	m.height = height
+	m.list.SetSize(width-4, height-12)
 } 
