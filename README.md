@@ -1,68 +1,120 @@
+# Goatmeal - Terminal AI Chat & Web Search
 
-# Goatmeal
-
-A terminal-based chat application using the Groq API.
-
-https://github.com/user-attachments/assets/a21b9fa0-7949-4521-8c34-b047c6d1c30d
+Goatmeal is a powerful terminal-based application that provides access to various AI chat providers and web search capabilities, all within your terminal.
 
 ## Features
 
-- Interactive TUI using Bubble Tea
-- Markdown rendering support (via [glamour](https://github.com/charmbracelet/glamour))
-- Conversation history
-- Themes (via [lipgloss](https://github.com/charmbracelet/lipgloss))
-- System prompt management
-- SQLite storage for chat history
-- Image input (remote images only, couldn't figure out how to get local image size small enough to send to api)
+- **Multiple AI Providers Support**
+  - OpenAI
+  - Anthropic
+  - Gemini
+  - Deepseek
+  - Groq
+- **Web Search Integration**
+  - Tavily search with domain filtering
+  - Markdown-formatted search results
+  - Answer summaries for relevant queries
+- **User-Friendly Terminal UI**
+  - Built with Bubble Tea and Bubbles
+  - Beautiful styling with Lipgloss
+  - Markdown rendering with Glamour
+  - Multiple theme options
+- **Conversation Management**
+  - SQLite-based conversation storage
+  - 30-day retention policy
+  - Easy conversation browsing
+  - Support for both chat and search conversations
+- **Configuration**
+  - YAML-based configuration
+  - Secure API key storage
+  - Customizable system prompts
+  - Model selection per provider
+- **Help System**
+  - Built-in keyboard shortcut reference
+  - Quick access with ctrl+h
 
 ## Installation
 
 ```bash
-go install github.com/tedfulk/goatmeal@v1.1.12
+go install github.com/tedfulk/goatmeal@v1.1.17
 ```
 
 ## Configuration
 
-On first run, Goatmeal will prompt you to:
+On first run, Goatmeal will guide you through the setup process. You'll need to provide API keys for the services you want to use.
 
-1. Enter your Groq [API key](https://console.groq.com/keys)
-2. Select a default model
-3. Configure system prompt
-4. Choose a theme
-5. Enter your username
+Configuration is stored in `~/.config/goatmeal/config.yaml`:
 
-Configuration is stored in `~/.goatmeal/config.yaml`
+```yaml
+api_keys:
+  openai: "your-api-key"
+  anthropic: "your-api-key"
+  gemini: "your-api-key"
+  deepseek: "your-api-key"
+  groq: "your-api-key"
+  tavily: "your-api-key"
+current_model: llama-3.3-70b-versatile
+current_provider: groq
+current_system_prompt: You are a helpful AI assistant.
+settings:
+    output_glamour: true
+    conversation_retention: 30
+    theme:
+        name: Default
+    username: teddy
+system_prompts:
+    - content: You are a helpful AI assistant.
+      title: General
+```
 
 ## Usage
 
-Simply run:
+### Keyboard Shortcuts
 
-```bash
-goatmeal
+- `ctrl+t`: Start a new conversation
+- `ctrl+l`: View conversation list
+- `ctrl+s`: Open settings menu
+- `ctrl+h`: View help
+- `ctrl+c`: Quit application
+- `esc`: Go back/close current view
+
+### Chat Interface
+
+- `?`: Toggle menu
+- `/`: Enter search mode
+- `enter`: Send message
+- `#n`: Open message number 'n' in editor
+
+### Search Mode
+
+- `/query`: Search for information
+- `/query +domain.com`: Search with specific domain
+- `esc`: Exit search mode
+
+### Conversation List
+
+- `tab`: Switch focus between list and messages
+- `d`: Delete selected conversation
+- `esc`: Return to chat
+
+### Project Structure
+
+```md
+goatmeal/
+ ├── config
+ ├── database
+ ├── main.go
+ ├── scripts
+ ├── services
+ │   ├── providers
+ │   │   ├── anthropic
+ │   │   ├── deepseek
+ │   │   ├── gemini
+ │   │   ├── groq
+ │   │   ├── openai
+ │   │   ├── openai_compatible.go
+ │   │   └── provider.go
+ │   ├── web
+ │   │   └── tavily
+ └── ui
 ```
-
-## Shortcuts
-
-| Shortcut | Action |
-| --- | --- |
-| shift+tab | Toggle menu |
-| tab | Toggle focus (in chat/list view) |
-| esc | Back/Quit |
-| q | Quit |
-| enter | Send message |
-| shift+enter | New line in message |
-| ctrl+l | List conversations |
-| ctrl+t | New conversation |
-| ; | Go to theme selector |
-| # | Go to image input |
-| ↑/k | Scroll up |
-| ↓/j | Scroll down |
-| ↑/k | Previous item |
-| ↓/j | Next item |
-| enter | Select item |
-
-## Roadmap
-
-- [ ] Add support for ChatGPT
-- [ ] Add support for conversation export
-- [ ] Add support for file uploads

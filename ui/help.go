@@ -1,114 +1,96 @@
 package ui
 
 import (
-	"strings"
-
-	"github.com/tedfulk/goatmeal/config"
-
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/tedfulk/goatmeal/ui/theme"
 )
 
-type HelpModel struct {
-	width  int
-	height int
-	colors config.ThemeColors
+type HelpView struct {
+	viewport viewport.Model
+	width    int
+	height   int
 }
 
-func NewHelp(colors config.ThemeColors) HelpModel {
-	return HelpModel{
-		colors: colors,
+func NewHelpView() *HelpView {
+	vp := viewport.New(0, 0)
+	vp.Style = lipgloss.NewStyle().
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(theme.CurrentTheme.Primary.GetColor()).
+		Padding(1, 2)
+
+	// Create the help content
+	content := `# Keyboard Shortcuts
+
+## Navigation
+* **ctrl+t**: Start a new conversation
+* **ctrl+l**: View conversation list
+* **ctrl+s**: Open settings menu
+* **ctrl+c**: Quit application
+* **esc**: Go back/close current view
+
+## Chat Interface
+* **?**: Toggle menu
+* **/**:  Enter search mode
+* **enter**: Send message
+* **#n**: Open message number 'n' in editor
+
+## Search Mode
+* **/query**: Search for information
+* **/query +domain.com**: Search with specific domain
+* **esc**: Exit search mode
+
+## Conversation List
+* **tab**: Switch focus between list and messages
+* **d**: Delete selected conversation
+* **esc**: Return to chat
+
+## Settings Menu
+* **enter**: Select option
+* **esc**: Return to previous menu
+
+## General
+* **ctrl+c, q**: Quit application
+`
+
+	// Render the markdown content
+	rendered, err := glamour.Render(content, "dark")
+	if err != nil {
+		rendered = content // Fallback to plain text if rendering fails
+	}
+	vp.SetContent(rendered)
+
+	return &HelpView{
+		viewport: vp,
 	}
 }
 
-func (m HelpModel) Init() tea.Cmd {
-	return nil
-}
+func (h *HelpView) Update(msg tea.Msg) (*HelpView, tea.Cmd) {
+	var cmd tea.Cmd
 
-func (m HelpModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
-		return m, nil
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "q":
-			return m, tea.Quit
-		case "esc":
-			return m, func() tea.Msg { return ChangeViewMsg(menuView) }
+		case "q", "esc":
+			return h, func() tea.Msg {
+				return SetViewMsg{view: "chat"}
+			}
 		}
 	}
-	return m, nil
+
+	h.viewport, cmd = h.viewport.Update(msg)
+	return h, cmd
 }
 
-func (m HelpModel) View() string {
-	// Create styles with theme colors
-	titleStyle := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color(m.colors.MenuTitle)).
-		Padding(1, 0).
-		Align(lipgloss.Center)
+func (h *HelpView) View() string {
+	return h.viewport.View()
+}
 
-	// Create fixed-width columns for better alignment
-	keyStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(m.colors.MenuSelected)).
-		Width(20).
-		Align(lipgloss.Right)  // Right align keys
-
-	descStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(m.colors.MenuNormal)).
-		Width(40).             // Fixed width for descriptions
-		Align(lipgloss.Left)   // Left align descriptions
-		//PaddingLeft(2)        // Remove padding since we'll handle spacing in JoinHorizontal
-
-	menuStyle := lipgloss.NewStyle().
-		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color(m.colors.MenuBorder)).
-		Padding(2, 4).
-		Width(80).
-		Align(lipgloss.Center)
-
-	// Build help content
-	var content strings.Builder
-	content.WriteString(titleStyle.Render("Keyboard Shortcuts"))
-	content.WriteString("\n\n")
-
-	shortcuts := []struct{ key, desc string }{
-		// Navigation
-		{"shift+tab", "Toggle menu"},
-		{"tab", "Toggle focus (in chat/list view)"},
-		{"esc", "Back/Quit"},
-		{"q", "Quit"},
-		
-		// Chat Actions
-		{"enter", "Send message"},
-		{"shift+enter", "New line in message"},
-		{"ctrl+l", "List conversations"},
-		{"ctrl+t", "New conversation"},
-		{";", "Go to theme selector"},
-		{"#", "Go to image input"},
-
-		// Scrolling
-		{"↑/k", "Scroll up"},
-		{"↓/j", "Scroll down"},
-		
-		// Menu Navigation
-		{"↑/k", "Previous item"},
-		{"↓/j", "Next item"},
-		{"enter", "Select item"},
-	}
-
-	for _, s := range shortcuts {
-		// Join the key and description with 2 spaces between them
-		line := lipgloss.JoinHorizontal(
-			lipgloss.Center,  // Center align the joined elements
-			keyStyle.Render(s.key),
-			"  ",  // Add explicit spacing between columns
-			descStyle.Render(s.desc),
-		)
-		content.WriteString(line + "\n")
-	}
-
-	return menuStyle.Render(content.String())
-} 
+func (h *HelpView) SetSize(width, height int) {
+	h.width = width
+	h.height = height
+	h.viewport.Width = width - 4
+	h.viewport.Height = height - 4
+}
