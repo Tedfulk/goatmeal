@@ -66,7 +66,7 @@ func (s *StatusBar) View() string {
 		lipgloss.JoinHorizontal(
 			lipgloss.Left,
 			titleStyle.Render(s.conversationTitle),
-			" • ",
+			" | ",
 			modelStyle.Render(s.config.CurrentProvider+"/"+s.config.CurrentModel),
 		),
 	)

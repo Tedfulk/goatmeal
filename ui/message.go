@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/tedfulk/goatmeal/config"
 	"github.com/tedfulk/goatmeal/ui/theme"
@@ -71,7 +72,6 @@ func (m Message) View(width int) string {
 		prefix = m.Config.CurrentModel
 	}
 	
-	// Use the muted timestamp color for both user and provider messages
 	timestampStyle := lipgloss.NewStyle().
 		Foreground(theme.CurrentTheme.Message.Timestamp.GetColor())
 	
@@ -105,6 +105,21 @@ func (m Message) View(width int) string {
 				timestampStr,
 			))
 	} else {
+		// AI message rendering with optional Glamour
+		var renderedContent string
+		if m.Config.Settings.OutputGlamour {
+			// Use Glamour for markdown rendering
+			glamourStyle := "dark"
+			if rendered, err := glamour.Render(m.Content, glamourStyle); err == nil {
+				renderedContent = rendered
+			} else {
+				// Fallback to plain text if Glamour fails
+				renderedContent = m.Content
+			}
+		} else {
+			renderedContent = m.Content
+		}
+
 		contentStyle := lipgloss.NewStyle().
 			Width(width - 12).
 			Align(lipgloss.Left).
@@ -112,7 +127,7 @@ func (m Message) View(width int) string {
 
 		content := baseStyle.
 			BorderForeground(theme.CurrentTheme.Secondary.GetColor()).
-			Render(contentStyle.Render(m.Content))
+			Render(contentStyle.Render(renderedContent))
 
 		return lipgloss.JoinVertical(
 			lipgloss.Left,

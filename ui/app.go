@@ -79,7 +79,7 @@ func NewApp(cfg *config.Config, db *database.DB) *App {
 		apiKeySettings:   NewAPIKeySettings(cfg),
 		
 		systemPromptSettings: NewSystemPromptSettings(cfg),
-		conversationList: NewConversationListView(db),
+		conversationList: NewConversationListView(db, cfg),
 	}
 }
 
@@ -118,6 +118,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.showMenu = true
 			// Clear any leftover content
 			a.conversationWindow.SetContent("")
+		} else if msg.view == "conversations" {
+			// Refresh the conversation list when switching to conversations view
+			a.refreshConversationList()
 		}
 		return a, nil
 	case tea.KeyMsg:
@@ -128,6 +131,8 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.currentView = "settings"
 		case "ctrl+l":
 			a.currentView = "conversations"
+			// Refresh the conversation list when switching to conversations view
+			a.refreshConversationList()
 		case "ctrl+t":
 			// Start a new conversation
 			a.messages = make([]Message, 0)
@@ -137,6 +142,8 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.currentView = "chat"
 			a.showMenu = false
 			a.updateConversationView()
+			// Refresh the conversation list to show any previous conversation
+			a.refreshConversationList()
 		case "esc":
 			if a.currentView == "conversations" {
 				// Let the conversation list handle its own escape key
@@ -248,10 +255,14 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 							// Convert UI messages to database messages
 							for i, msg := range a.messages {
+								role := "user"
+								if msg.Type == ProviderMessage {
+									role = "assistant"
+								}
 								conv.Messages[i] = database.Message{
 									ID:             uuid.New().String(),
 									ConversationID: conv.ID,
-									Role:           string(msg.Type),
+									Role:           role,
 									Content:        msg.Content,
 									CreatedAt:     msg.Timestamp,
 								}
@@ -260,13 +271,19 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 							if err := a.db.SaveConversation(conv); err != nil {
 								fmt.Printf("Error saving conversation: %v\n", err)
 							}
+							// Refresh the conversation list after saving
+							a.refreshConversationList()
 						} else if len(a.messages) > 2 { // Subsequent messages
 							// Add just the new message
 							lastMsg := a.messages[len(a.messages)-1]
+							role := "user"
+							if lastMsg.Type == ProviderMessage {
+								role = "assistant"
+							}
 							dbMsg := &database.Message{
 								ID:             uuid.New().String(),
 								ConversationID: a.currentConversationID,
-								Role:           string(lastMsg.Type),
+								Role:           role,
 								Content:        lastMsg.Content,
 								CreatedAt:      lastMsg.Timestamp,
 							}
@@ -305,8 +322,12 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					a.currentConversationID = ""
 					a.statusBar.SetConversationTitle("New Conversation")
 					a.updateConversationView()
+					// Refresh the conversation list to show any previous conversation
+					a.refreshConversationList()
 				case "Conversations":
 					a.currentView = "conversations"
+					// Refresh the conversation list when switching to conversations view
+					a.refreshConversationList()
 				case "Settings":
 					a.currentView = "settings"
 				case "Help":
@@ -520,4 +541,11 @@ func (a *App) openMessageInEditor(m Message) {
 	}
 
 	os.Remove(tmpPath)
+}
+
+// In the App struct, add a method to refresh the conversation list
+func (a *App) refreshConversationList() {
+	if a.conversationList != nil {
+		a.conversationList.loadConversations()
+	}
 } 

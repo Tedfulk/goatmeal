@@ -5,7 +5,9 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/tedfulk/goatmeal/config"
 	"github.com/tedfulk/goatmeal/database"
 	"github.com/tedfulk/goatmeal/ui/theme"
 )
@@ -49,6 +51,7 @@ var DefaultKeyMap = KeyMap{
 
 type ConversationListView struct {
 	db       *database.DB
+	config   *config.Config
 	list     list.Model
 	messages []database.Message
 	width    int
@@ -59,7 +62,7 @@ type ConversationListView struct {
 	focused  string
 }
 
-func NewConversationListView(db *database.DB) *ConversationListView {
+func NewConversationListView(db *database.DB, cfg *config.Config) *ConversationListView {
 	l := list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0)
 	l.Title = "Conversations"
 	l.SetShowHelp(true)
@@ -88,6 +91,7 @@ func NewConversationListView(db *database.DB) *ConversationListView {
 
 	view := &ConversationListView{
 		db:       db,
+		config:   cfg,
 		list:     l,
 		keys:     DefaultKeyMap,
 		viewport: vp,
@@ -123,6 +127,12 @@ func (c *ConversationListView) loadConversations() {
 		})
 	}
 	c.list.SetItems(items)
+
+	// If there are conversations, load messages for the first one
+	if len(items) > 0 {
+		firstConv := items[0].(ConversationItem)
+		c.loadMessages(firstConv.id)
+	}
 }
 
 func (c *ConversationListView) loadMessages(conversationID string) {
@@ -132,11 +142,50 @@ func (c *ConversationListView) loadMessages(conversationID string) {
 	}
 	c.messages = messages
 
+	// Get the conversation details to access the model name
+	conversations, err := c.db.GetConversations(0, -1)
+	if err != nil {
+		return
+	}
+	
+	var currentConv *database.Conversation
+	for _, conv := range conversations {
+		if conv.ID == conversationID {
+			currentConv = &conv
+			break
+		}
+	}
+
 	// Update viewport content
 	var content string
 	if len(c.messages) > 0 {
 		for _, msg := range c.messages {
-			content += msg.Role + ": " + msg.Content + "\n\n"
+			var prefix string
+			if msg.Role == "user" {
+				// Color username with UserText color
+				prefix = lipgloss.NewStyle().
+					Foreground(theme.CurrentTheme.Message.UserText.GetColor()).
+					Render(c.config.Settings.Username)
+			} else {
+				// Color model name with AIText color
+				modelName := "AI"
+				if currentConv != nil {
+					modelName = currentConv.Model
+				}
+				prefix = lipgloss.NewStyle().
+					Foreground(theme.CurrentTheme.Message.AIText.GetColor()).
+					Render(modelName)
+			}
+
+			// Render message content with Glamour if enabled
+			msgContent := msg.Content
+			if c.config.Settings.OutputGlamour && msg.Role == "assistant" {
+				if rendered, err := glamour.Render(msg.Content, "dark"); err == nil {
+					msgContent = rendered
+				}
+			}
+
+			content += prefix + "\n" + msgContent + "\n\n"
 		}
 	} else {
 		content = "Select a conversation to view messages"
