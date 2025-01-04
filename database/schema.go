@@ -74,7 +74,7 @@ func (db *DB) CleanupOldConversations(retentionDays int) error {
 type Message struct {
 	ID             string
 	ConversationID string
-	Role           string
+	Role           string    // Can be "user", "assistant", or "search"
 	Content        string
 	CreatedAt      time.Time
 }

@@ -162,14 +162,19 @@ func (c *ConversationListView) loadMessages(conversationID string) {
 		for _, msg := range c.messages {
 			var prefix string
 			if msg.Role == "user" {
-				// Color username with UserText color
 				prefix = lipgloss.NewStyle().
 					Foreground(theme.CurrentTheme.Message.UserText.GetColor()).
-					Render(c.config.Settings.Username)
+						Render(c.config.Settings.Username)
+			} else if msg.Role == "search" {
+				prefix = lipgloss.NewStyle().
+					Foreground(theme.CurrentTheme.Message.AIText.GetColor()).
+						Render("Tavily")
 			} else {
 				// Color model name with AIText color
 				modelName := "AI"
-				if currentConv != nil {
+				if currentConv.Provider == "tavily" {
+					modelName = "Tavily"
+				} else {
 					modelName = currentConv.Model
 				}
 				prefix = lipgloss.NewStyle().
@@ -179,7 +184,7 @@ func (c *ConversationListView) loadMessages(conversationID string) {
 
 			// Render message content with Glamour if enabled
 			msgContent := msg.Content
-			if c.config.Settings.OutputGlamour && msg.Role == "assistant" {
+			if c.config.Settings.OutputGlamour && (msg.Role == "assistant" || msg.Role == "search") {
 				if rendered, err := glamour.Render(msg.Content, "dark"); err == nil {
 					msgContent = rendered
 				}

@@ -48,4 +48,9 @@ func (i Input) Value() string {
 // Reset clears the input
 func (i *Input) Reset() {
 	i.textInput.Reset()
+}
+
+// Set sets the input value
+func (i *Input) Set(value string) {
+	i.textInput.SetValue(value)
 } 

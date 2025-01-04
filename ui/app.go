@@ -18,6 +18,7 @@ import (
 	"github.com/tedfulk/goatmeal/services/providers"
 	"github.com/tedfulk/goatmeal/services/providers/anthropic"
 	"github.com/tedfulk/goatmeal/services/providers/gemini"
+	"github.com/tedfulk/goatmeal/services/web/tavily"
 	"github.com/tedfulk/goatmeal/ui/theme"
 )
 
@@ -49,6 +50,9 @@ type App struct {
 	systemPromptSettings SystemPromptSettings
 	conversationList  *ConversationListView
 	currentConversationID string
+	isSearchMode bool
+	searchDomains []string
+	helpView          *HelpView
 }
 
 // NewApp creates a new application UI
@@ -80,6 +84,7 @@ func NewApp(cfg *config.Config, db *database.DB) *App {
 		
 		systemPromptSettings: NewSystemPromptSettings(cfg),
 		conversationList: NewConversationListView(db, cfg),
+		helpView:          NewHelpView(),
 	}
 }
 
@@ -145,6 +150,15 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Refresh the conversation list to show any previous conversation
 			a.refreshConversationList()
 		case "esc":
+			if a.currentView == "help" {
+				a.currentView = "chat"
+				return a, nil
+			}
+			if a.isSearchMode {
+				a.isSearchMode = false
+				a.input.Reset()
+				return a, nil
+			}
 			if a.currentView == "conversations" {
 				// Let the conversation list handle its own escape key
 				break
@@ -173,6 +187,139 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						}
 					}
 					a.input.Reset()
+					return a, nil
+				}
+			}
+
+			// Handle search mode
+			if a.isSearchMode {
+				if input != "" {
+					// Remove the leading "/"
+					query := strings.TrimPrefix(input, "/")
+					
+					// Check for domain inclusions (marked with +)
+					var domains []string
+					parts := strings.Split(query, "+")
+					query = strings.TrimSpace(parts[0])
+					
+					// If there are additional parts, they are domains
+					if len(parts) > 1 {
+						for _, domain := range parts[1:] {
+							domain = strings.TrimSpace(domain)
+							if domain != "" {
+								domains = append(domains, domain)
+							}
+						}
+					}
+					
+					// Create and store user message with domain info
+					searchMsg := fmt.Sprintf("🔍 Searching for: %s", query)
+					if len(domains) > 0 {
+						searchMsg += fmt.Sprintf("\nDomains: %s", strings.Join(domains, ", "))
+					}
+					userMsg := NewMessage(a.nextMessageID, UserMessage, searchMsg, a.config)
+					a.messages = append(a.messages, userMsg)
+					a.nextMessageID++
+					
+					// If this is the first message, generate a title and create conversation in DB
+					if len(a.messages) == 1 {
+						go a.generateTitle(query)
+						a.currentConversationID = uuid.New().String()
+					}
+					
+					// Update conversation window
+					a.updateConversationView()
+					
+					// Clear input and search mode
+					a.input.Reset()
+					a.isSearchMode = false
+					
+					// Perform search in goroutine
+					go func() {
+						tavilyClient := tavily.NewClient(a.config.APIKeys["tavily"])
+						searchResp, err := tavilyClient.Search(query, domains)
+						
+						var response string
+						if err != nil {
+							response = fmt.Sprintf("Error performing search: %v", err)
+						} else {
+							// Format search results
+							var sb strings.Builder
+							
+							// If there's an answer, show it first
+							if searchResp.Answer != nil {
+								sb.WriteString("### Answer Summary\n\n")
+								sb.WriteString(fmt.Sprintf("%v", searchResp.Answer))
+								sb.WriteString("\n\n---\n\n")
+							}
+							
+							sb.WriteString("### Search Results\n\n")
+							
+							// Show individual results
+							for _, result := range searchResp.Results {
+								sb.WriteString(fmt.Sprintf("**[%s](%s)**\n\n%s\n\n---\n\n", 
+									result.Title, result.URL, result.Content))
+							}
+							response = sb.String()
+						}
+						
+						// Create and store search result message
+						searchMsg := NewMessage(a.nextMessageID, SearchMessage, response, a.config)
+						a.messages = append(a.messages, searchMsg)
+						a.nextMessageID++
+						
+						// Save to database if we have a current conversation
+						if a.currentConversationID != "" {
+							if len(a.messages) == 2 { // First user message + first search response
+								// Save the entire conversation
+								conv := &database.Conversation{
+									ID:        a.currentConversationID,
+									Title:     a.statusBar.conversationTitle,
+									Provider:  "tavily",  // Use Tavily as provider for search-only conversations
+									Model:     "search",  // Use "search" as model for search-only conversations
+									CreatedAt: time.Now(),
+									UpdatedAt: time.Now(),
+									Messages:  make([]database.Message, len(a.messages)),
+								}
+
+								// Convert UI messages to database messages
+								for i, msg := range a.messages {
+									role := "user"
+									if msg.Type == SearchMessage {
+										role = "search"
+									}
+									conv.Messages[i] = database.Message{
+										ID:             uuid.New().String(),
+										ConversationID: conv.ID,
+										Role:           role,
+										Content:        msg.Content,
+										CreatedAt:      msg.Timestamp,
+									}
+								}
+
+								if err := a.db.SaveConversation(conv); err != nil {
+									fmt.Printf("Error saving conversation: %v\n", err)
+								}
+								// Refresh the conversation list after saving
+								a.refreshConversationList()
+							} else {
+								// Add just the new message for subsequent messages
+								dbMsg := &database.Message{
+									ID:             uuid.New().String(),
+									ConversationID: a.currentConversationID,
+									Role:           "search",
+									Content:        response,
+									CreatedAt:      time.Now(),
+								}
+								if err := a.db.AddMessage(dbMsg); err != nil {
+									fmt.Printf("Error adding search message: %v\n", err)
+								}
+							}
+						}
+						
+						// Update conversation window
+						a.updateConversationView()
+					}()
 					return a, nil
 				}
 			}
@@ -256,16 +403,18 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 							// Convert UI messages to database messages
 							for i, msg := range a.messages {
 								role := "user"
-								if msg.Type == ProviderMessage {
+								if msg.Type == SearchMessage {
+									role = "search"
+								} else if msg.Type == ProviderMessage {
 									role = "assistant"
 								}
 								conv.Messages[i] = database.Message{
-									ID:             uuid.New().String(),
-									ConversationID: conv.ID,
-									Role:           role,
-									Content:        msg.Content,
-									CreatedAt:     msg.Timestamp,
-								}
+										ID:             uuid.New().String(),
+										ConversationID: conv.ID,
+										Role:           role,
+										Content:        msg.Content,
+										CreatedAt:     msg.Timestamp,
+									}
 							}
 
 							if err := a.db.SaveConversation(conv); err != nil {
@@ -297,9 +446,18 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 		// Handle menu toggle
-		if msg.String() == "/" {
+		if msg.String() == "?" {
 			if a.input.Value() == "" {
 				a.showMenu = !a.showMenu
+				return a, nil
+			}
+		}
+
+		// Handle search mode toggle
+		if msg.String() == "/" {
+			if a.input.Value() == "" {
+				a.isSearchMode = true
+				a.input.Set("/")
 				return a, nil
 			}
 		}
@@ -344,6 +502,12 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return a, menuCmd
 		}
 
+		// Handle help view
+		if msg.String() == "ctrl+h" {
+			a.currentView = "help"
+			return a, nil
+		}
+
 	case tea.WindowSizeMsg:
 		a.height = msg.Height
 		a.width = msg.Width
@@ -359,6 +523,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.apiKeySettings.SetSize(msg.Width, msg.Height)
 		a.systemPromptSettings.SetSize(msg.Width, msg.Height)
 		a.conversationList.SetSize(msg.Width, msg.Height)
+		a.helpView.SetSize(msg.Width, msg.Height)
 
 		// Re-render messages with new width
 		a.updateConversationView()
@@ -401,6 +566,10 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var themeCmd tea.Cmd
 		a.settingsMenu.themeSettings, themeCmd = a.settingsMenu.themeSettings.Update(msg)
 		cmds = append(cmds, themeCmd)
+	} else if a.currentView == "help" {
+		var helpCmd tea.Cmd
+		a.helpView, helpCmd = a.helpView.Update(msg)
+		cmds = append(cmds, helpCmd)
 	} else {
 		a.conversationWindow, cmd = a.conversationWindow.Update(msg)
 		cmds = append(cmds, cmd)
@@ -442,6 +611,8 @@ func (a *App) View() string {
 		return a.systemPromptSettings.View()
 	case "theme":
 		return a.settingsMenu.themeSettings.View()
+	case "help":
+		return a.helpView.View()
 	default:
 		return a.chatView()
 	}

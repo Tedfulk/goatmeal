@@ -5,26 +5,33 @@ Goatmeal is a powerful terminal-based application that provides access to variou
 ## Features
 
 - **Multiple AI Providers Support**
-  - OpenAI (GPT-4, GPT-3.5)
-  - Claude
+  - OpenAI
+  - Anthropic
   - Gemini
   - Deepseek
   - Groq
 - **Web Search Integration**
-  - Tavily search integration
+  - Tavily search with domain filtering
+  - Markdown-formatted search results
+  - Answer summaries for relevant queries
 - **User-Friendly Terminal UI**
   - Built with Bubble Tea and Bubbles
   - Beautiful styling with Lipgloss
   - Markdown rendering with Glamour
+  - Multiple theme options
 - **Conversation Management**
   - SQLite-based conversation storage
   - 30-day retention policy
   - Easy conversation browsing
+  - Support for both chat and search conversations
 - **Configuration**
   - YAML-based configuration
   - Secure API key storage
   - Customizable system prompts
   - Model selection per provider
+- **Help System**
+  - Built-in keyboard shortcut reference
+  - Quick access with ctrl+h
 
 ## Installation
 
@@ -41,7 +48,7 @@ Configuration is stored in `~/.config/goatmeal/config.yaml`:
 ```yaml
 api_keys:
   openai: "your-api-key"
-  claude: "your-api-key"
+  anthropic: "your-api-key"
   gemini: "your-api-key"
   deepseek: "your-api-key"
   groq: "your-api-key"
@@ -54,30 +61,39 @@ system_prompts:
 
 settings:
   output_glamour: true
-  default_models:
-    openai: "gpt-4-turbo-preview"
-    claude: "claude-3-opus"
-    gemini: "gemini-pro"
-    deepseek: "deepseek-coder"
-    groq: "mixtral-8x7b-32768"
+  theme:
+    name: "Default"
 ```
 
 ## Usage
 
-### Basic Commands
-
-- Start the application:
-  ```bash
-  goatmeal
-  ```
-
 ### Keyboard Shortcuts
 
-- `Ctrl+C` or `q`: Quit
-- `Ctrl+S`: Open settings
-- `Enter`: Send message
-- `Up/Down`: Navigate conversation history
-- `Tab`: Switch between input and conversation view
+- `ctrl+t`: Start a new conversation
+- `ctrl+l`: View conversation list
+- `ctrl+s`: Open settings menu
+- `ctrl+h`: View help
+- `ctrl+c`: Quit application
+- `esc`: Go back/close current view
+
+### Chat Interface
+
+- `?`: Toggle menu
+- `/`: Enter search mode
+- `enter`: Send message
+- `#n`: Open message number 'n' in editor
+
+### Search Mode
+
+- `/query`: Search for information
+- `/query +domain.com`: Search with specific domain
+- `esc`: Exit search mode
+
+### Conversation List
+
+- `tab`: Switch focus between list and messages
+- `d`: Delete selected conversation
+- `esc`: Return to chat
 
 ## Development
 

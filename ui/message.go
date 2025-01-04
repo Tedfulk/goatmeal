@@ -17,6 +17,7 @@ type MessageType int
 const (
 	UserMessage MessageType = iota
 	ProviderMessage
+	SearchMessage
 )
 
 // Message represents a single message in the conversation
@@ -68,6 +69,8 @@ func (m Message) View(width int) string {
 	var prefix string
 	if m.Type == UserMessage {
 		prefix = m.Config.Settings.Username
+	} else if m.Type == SearchMessage {
+		prefix = "Tavily"
 	} else {
 		prefix = m.Config.CurrentModel
 	}

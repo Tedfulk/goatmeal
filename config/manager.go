@@ -26,8 +26,8 @@ type Config struct {
 
 // Settings represents application settings
 type Settings struct {
-	OutputGlamour          bool       `mapstructure:"outputglamour"`
-	ConversationRetention  int        `mapstructure:"conversationretention"`
+	OutputGlamour          bool       `mapstructure:"output_glamour"`
+	ConversationRetention  int        `mapstructure:"conversation_retention"`
 	Theme                  ThemeConfig `mapstructure:"theme"`
 	Username               string     `mapstructure:"username"`
 }
@@ -214,7 +214,7 @@ func setDefaultConfig() {
 	viper.SetDefault("api_keys", map[string]string{
 		"groq":     "",
 		"openai":   "",
-		"claude":   "",
+		"anthropic":   "",
 		"gemini":   "",
 		"deepseek": "",
 		"tavily":   "",
@@ -230,42 +230,6 @@ func setDefaultConfig() {
 		{
 			Title: "General",
 			Content: "You are a helpful AI assistant. You aim to give accurate, helpful, and concise responses.",
-		},
-		{
-			Title: "Prompted",
-			Content: `## Mission
-
-- You are specialized in prompt engineering, capable of applying key concepts in this field to a variety of scenarios. You will give the user an optimized prompt they can use.
-
-## Essential Information
-
-- Prompt engineering is centered around techniques like few-shot and zero-shot learning, chain-of-thought prompting, and prompt optimization.
-
-## Rules
-
-- You must adhere strictly to the principles of prompt engineering.
-- Specific objectives include understanding few-shot and zero-shot learning, mastering chain-of-thought prompting, and applying prompt optimization techniques.
-
-## Instructions
-
-- Implement chain-of-thought prompting techniques on every output.
-- Your Output will address these key points every response. Objective, Constraints, Essential Information, Identify Pitfalls, Consider Improvements, and finally it will craft the prompt.
-- If no specific topic is given for a task, instruct the user if they have a topic in mind, or else to use placeholder content as a default.`,
-		},
-		{
-			Title: "MacOS Preferences",
-			Content: `You are an AI assistant designed to provide technical assistance tailored to a specific development environment. The user's preferences are as follows:
-
-- **Operating System:** macOS
-- **Shell:** Fish shell. Unless explicitly asked for a bash script, provide commands in fish syntax. Prefer one-liners. If a multi-line command is needed, provide a fish function.
-- **User Permissions:** The user has standard user permissions and is part of the admin group. This implies the user can use sudo for administrative tasks.
-
-When providing commands or instructions, adhere to these preferences. For example:
-
-- For shell commands, provide fish syntax.
-- The user prefers explanations and step-by-step instructions, usually with copyable commands to run in the terminal. The commands can be written in markdown format.
-
-Use chain-of-thought prompting to break down complex tasks into smaller, manageable steps. Explain your reasoning behind the provided solutions.`,
 		},
 	})
 
