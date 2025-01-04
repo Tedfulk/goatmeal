@@ -23,12 +23,10 @@ import (
 )
 
 var (
-	// Styles
 	appStyle = lipgloss.NewStyle().
 		Padding(0, 1)
 )
 
-// App represents the main application UI
 type App struct {
 	config             *config.Config
 	db                 *database.DB
@@ -55,9 +53,7 @@ type App struct {
 	helpView          *HelpView
 }
 
-// NewApp creates a new application UI
 func NewApp(cfg *config.Config, db *database.DB) *App {
-	// Load theme from config
 	theme.LoadThemeFromConfig(cfg.Settings.Theme.Name)
 
 	vp := viewport.New(0, 0)
@@ -88,12 +84,10 @@ func NewApp(cfg *config.Config, db *database.DB) *App {
 	}
 }
 
-// Init initializes the application
 func (a *App) Init() tea.Cmd {
 	return nil
 }
 
-// Update handles UI updates
 func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var (
 		cmd  tea.Cmd
@@ -102,7 +96,6 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case ThemeChangeMsg:
-		// Update all component styles with the new theme
 		a.conversationWindow.Style = lipgloss.NewStyle().
 			BorderStyle(lipgloss.RoundedBorder()).
 			BorderForeground(theme.CurrentTheme.Primary.GetColor()).
@@ -124,7 +117,6 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Clear any leftover content
 			a.conversationWindow.SetContent("")
 		} else if msg.view == "conversations" {
-			// Refresh the conversation list when switching to conversations view
 			a.refreshConversationList()
 		}
 		return a, nil
@@ -136,7 +128,6 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.currentView = "settings"
 		case "ctrl+l":
 			a.currentView = "conversations"
-			// Refresh the conversation list when switching to conversations view
 			a.refreshConversationList()
 		case "ctrl+t":
 			// Start a new conversation
@@ -147,7 +138,6 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.currentView = "chat"
 			a.showMenu = false
 			a.updateConversationView()
-			// Refresh the conversation list to show any previous conversation
 			a.refreshConversationList()
 		case "esc":
 			if a.currentView == "help" {
@@ -177,9 +167,8 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "enter":
 			input := a.input.Value()
 			if strings.HasPrefix(input, "#") {
-				// Handle message opening
+				// Handle message opening to default editor
 				if msgNum, err := strconv.Atoi(strings.TrimPrefix(input, "#")); err == nil {
-					// Find the message
 					for _, m := range a.messages {
 						if m.ID == msgNum {
 							go a.openMessageInEditor(m)
@@ -227,7 +216,6 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						a.currentConversationID = uuid.New().String()
 					}
 					
-					// Update conversation window
 					a.updateConversationView()
 					
 					// Clear input and search mode
@@ -275,8 +263,8 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 								conv := &database.Conversation{
 									ID:        a.currentConversationID,
 									Title:     a.statusBar.conversationTitle,
-									Provider:  "tavily",  // Use Tavily as provider for search-only conversations
-									Model:     "search",  // Use "search" as model for search-only conversations
+									Provider:  "tavily",
+									Model:     "search",
 									CreatedAt: time.Now(),
 									UpdatedAt: time.Now(),
 									Messages:  make([]database.Message, len(a.messages)),
@@ -300,7 +288,6 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 								if err := a.db.SaveConversation(conv); err != nil {
 									fmt.Printf("Error saving conversation: %v\n", err)
 								}
-								// Refresh the conversation list after saving
 								a.refreshConversationList()
 							} else {
 								// Add just the new message for subsequent messages
@@ -317,7 +304,6 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 							}
 						}
 						
-						// Update conversation window
 						a.updateConversationView()
 					}()
 					return a, nil
@@ -327,15 +313,12 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if input != "" {
 				userInput := input
 				
-				// Create and store user message
 				userMsg := NewMessage(a.nextMessageID, UserMessage, userInput, a.config)
 				a.messages = append(a.messages, userMsg)
 				a.nextMessageID++
 
-				// Update conversation window
 				a.updateConversationView()
 				
-				// Clear input and scroll
 				a.input.Reset()
 
 				// If this is the first message, generate a title and create conversation in DB
@@ -364,7 +347,6 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 							provider := gemini.NewProvider(apiKey)
 							response, err = provider.SendMessage(context.Background(), userInput, a.config.CurrentSystemPrompt, a.config.CurrentModel)
 						default:
-							// Handle OpenAI-compatible providers
 							cfg := providers.OpenAICompatibleConfig{
 								Name:    providerName,
 								APIKey:  apiKey,
@@ -383,7 +365,6 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					a.messages = append(a.messages, providerMsg)
 					a.nextMessageID++
 
-					// Update conversation window
 					a.updateConversationView()
 
 					// Save to database if we have a current conversation
@@ -420,10 +401,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 							if err := a.db.SaveConversation(conv); err != nil {
 								fmt.Printf("Error saving conversation: %v\n", err)
 							}
-							// Refresh the conversation list after saving
+
 							a.refreshConversationList()
-						} else if len(a.messages) > 2 { // Subsequent messages
-							// Add just the new message
+						} else if len(a.messages) > 2 {
 							lastMsg := a.messages[len(a.messages)-1]
 							role := "user"
 							if lastMsg.Type == ProviderMessage {
@@ -472,7 +452,6 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				selected := a.menu.list.SelectedItem().(MenuItem)
 				a.showMenu = false
 				
-				// Handle menu selection
 				switch selected.title {
 				case "New Conversation":
 					a.messages = make([]Message, 0)
@@ -480,16 +459,14 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					a.currentConversationID = ""
 					a.statusBar.SetConversationTitle("New Conversation")
 					a.updateConversationView()
-					// Refresh the conversation list to show any previous conversation
 					a.refreshConversationList()
 				case "Conversations":
 					a.currentView = "conversations"
-					// Refresh the conversation list when switching to conversations view
 					a.refreshConversationList()
 				case "Settings":
 					a.currentView = "settings"
 				case "Help":
-					// TODO: Implement help
+					a.currentView = "help"
 				case "Quit":
 					return a, tea.Quit
 				}
