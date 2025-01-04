@@ -56,7 +56,7 @@ func main() {
 	}
 
 	// Initialize UI
-	app := ui.NewApp(cfg)
+	app := ui.NewApp(cfg, db)
 	p := tea.NewProgram(app, tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("Error running application: %v\n", err)

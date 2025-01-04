@@ -26,17 +26,17 @@ type Config struct {
 
 // Settings represents application settings
 type Settings struct {
-	OutputGlamour          bool   `mapstructure:"outputglamour"`
-	ConversationRetention  int    `mapstructure:"conversationretention"`
-	Theme                  string `mapstructure:"theme"`
-	Username               string `mapstructure:"username"`
+	OutputGlamour          bool       `mapstructure:"outputglamour"`
+	ConversationRetention  int        `mapstructure:"conversationretention"`
+	Theme                  ThemeConfig `mapstructure:"theme"`
+	Username               string     `mapstructure:"username"`
 }
 
 // DefaultSettings contains the default values for settings
 var DefaultSettings = Settings{
 	OutputGlamour:         true,
 	ConversationRetention: 30,
-	Theme:                 "default",
+	Theme:                DefaultThemeConfig(),
 	Username:             "User",
 }
 
@@ -72,8 +72,21 @@ func NewManager() (*Manager, error) {
 		if err := viper.ReadInConfig(); err != nil {
 			return nil, fmt.Errorf("error reading config: %w", err)
 		}
+
+		// Handle theme configuration transition
+		var oldTheme string
+		if err := viper.UnmarshalKey("settings.theme", &oldTheme); err == nil && oldTheme != "" {
+			// We found an old string-based theme config, convert it to the new format
+			viper.Set("settings.theme", ThemeConfig{Name: oldTheme})
+		}
+
 		if err := viper.Unmarshal(&config); err != nil {
 			return nil, fmt.Errorf("error parsing config: %w", err)
+		}
+
+		// Ensure theme has a name
+		if config.Settings.Theme.Name == "" {
+			config.Settings.Theme = DefaultThemeConfig()
 		}
 	} else {
 		// For first run, use the default configuration

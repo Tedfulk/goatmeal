@@ -2,10 +2,12 @@ package ui
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/tedfulk/goatmeal/config"
+	"github.com/tedfulk/goatmeal/ui/theme"
 )
 
 // MessageType represents the type of message (user or provider)
@@ -36,6 +38,29 @@ func NewMessage(id int, msgType MessageType, content string, cfg *config.Config)
 	}
 }
 
+// wordWrap wraps text at the specified width
+func wordWrap(text string, width int) string {
+	words := strings.Fields(text)
+	if len(words) == 0 {
+		return text
+	}
+
+	var lines []string
+	currentLine := words[0]
+
+	for _, word := range words[1:] {
+		if len(currentLine)+1+len(word) <= width {
+			currentLine += " " + word
+		} else {
+			lines = append(lines, currentLine)
+			currentLine = word
+		}
+	}
+	lines = append(lines, currentLine)
+
+	return strings.Join(lines, "\n")
+}
+
 // View renders the message with its ID and content
 func (m Message) View(width int) string {
 	// Format timestamp with username/model
@@ -46,21 +71,29 @@ func (m Message) View(width int) string {
 		prefix = m.Config.CurrentModel
 	}
 	
-	timestampStr := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#666666")).
-		Render(fmt.Sprintf("%s • #%d • %s", prefix, m.ID, m.Timestamp.Format("15:04")))
+	// Use the muted timestamp color for both user and provider messages
+	timestampStyle := lipgloss.NewStyle().
+		Foreground(theme.CurrentTheme.Message.Timestamp.GetColor())
+	
+	timestampStr := timestampStyle.Render(
+		fmt.Sprintf("%s • #%d • %s", prefix, m.ID, m.Timestamp.Format("15:04")),
+	)
 
-	baseStyle := lipgloss.NewStyle().
-		Padding(1).
-		BorderStyle(lipgloss.RoundedBorder())
+	baseStyle := theme.BaseStyle.Message
 
 	if m.Type == UserMessage {
-		contentStyle := lipgloss.NewStyle().Foreground(primaryColor)
+		// Calculate available width for content
+		contentWidth := width - 16
 		
-		renderedContent := contentStyle.Render(m.Content)
+		wrappedContent := wordWrap(m.Content, contentWidth)
+		
+		contentStyle := lipgloss.NewStyle().
+			Foreground(theme.CurrentTheme.Message.UserText.GetColor())
+		
+		renderedContent := contentStyle.Render(wrappedContent)
 		
 		messageBox := baseStyle.
-			BorderForeground(primaryColor).
+			BorderForeground(theme.CurrentTheme.Primary.GetColor()).
 			Render(renderedContent)
 
 		return lipgloss.NewStyle().
@@ -75,13 +108,12 @@ func (m Message) View(width int) string {
 		contentStyle := lipgloss.NewStyle().
 			Width(width - 12).
 			Align(lipgloss.Left).
-			Foreground(secondaryColor)
+			Foreground(theme.CurrentTheme.Message.AIText.GetColor())
 
 		content := baseStyle.
-			BorderForeground(secondaryColor).
+			BorderForeground(theme.CurrentTheme.Secondary.GetColor()).
 			Render(contentStyle.Render(m.Content))
 
-		// Create a container for message and timestamp
 		return lipgloss.JoinVertical(
 			lipgloss.Left,
 			content,

@@ -3,7 +3,7 @@ package ui
 import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"github.com/tedfulk/goatmeal/ui/theme"
 )
 
 // Input represents the user input component
@@ -34,10 +34,9 @@ func (i Input) Update(msg tea.Msg) (Input, tea.Cmd) {
 
 // View renders the input component
 func (i Input) View() string {
-	return lipgloss.NewStyle().
+	return theme.BaseStyle.Input.
 		Width(i.Width).
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(primaryColor).
+		BorderForeground(theme.CurrentTheme.Primary.GetColor()).
 		Render(i.textInput.View())
 }
 

@@ -7,30 +7,30 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/google/uuid"
 	"github.com/tedfulk/goatmeal/config"
+	"github.com/tedfulk/goatmeal/database"
 	"github.com/tedfulk/goatmeal/services/providers"
 	"github.com/tedfulk/goatmeal/services/providers/anthropic"
 	"github.com/tedfulk/goatmeal/services/providers/gemini"
+	"github.com/tedfulk/goatmeal/ui/theme"
 )
 
 var (
 	// Styles
 	appStyle = lipgloss.NewStyle().
 		Padding(0, 1)
-	
-	// Colors
-	primaryColor   = lipgloss.Color("#7D56F4")
-	secondaryColor = lipgloss.Color("#FFF")
-	accentColor    = lipgloss.Color("#48BB78")
 )
 
 // App represents the main application UI
 type App struct {
 	config             *config.Config
+	db                 *database.DB
 	conversationWindow viewport.Model
 	input             Input
 	statusBar         *StatusBar
@@ -47,19 +47,24 @@ type App struct {
 	usernameSettings  UsernameSettings
 	apiKeySettings    APIKeySettings
 	systemPromptSettings SystemPromptSettings
+	conversationList  *ConversationListView
+	currentConversationID string
 }
 
 // NewApp creates a new application UI
-func NewApp(cfg *config.Config) *App {
-	// Initialize viewport with default size, it will be updated in first WindowSizeMsg
+func NewApp(cfg *config.Config, db *database.DB) *App {
+	// Load theme from config
+	theme.LoadThemeFromConfig(cfg.Settings.Theme.Name)
+
 	vp := viewport.New(0, 0)
 	vp.Style = lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(primaryColor).
+		BorderForeground(theme.CurrentTheme.Primary.GetColor()).
 		Align(lipgloss.Left)
 
 	return &App{
 		config:            cfg,
+		db:               db,
 		currentView:       "chat",
 		input:            NewInput(),
 		statusBar:        NewStatusBar(cfg, "New Conversation"),
@@ -68,11 +73,13 @@ func NewApp(cfg *config.Config) *App {
 		conversationWindow: vp,
 		menu:            NewMenu(),
 		showMenu:        false,
-		settingsMenu:    NewSettingsMenu(),
+		settingsMenu:    NewSettingsMenu(cfg),
 		glamourMenu:     NewGlamourMenu(cfg),
 		usernameSettings: NewUsernameSettings(cfg),
 		apiKeySettings:   NewAPIKeySettings(cfg),
+		
 		systemPromptSettings: NewSystemPromptSettings(cfg),
+		conversationList: NewConversationListView(db),
 	}
 }
 
@@ -89,14 +96,56 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	)
 
 	switch msg := msg.(type) {
+	case ThemeChangeMsg:
+		// Update all component styles with the new theme
+		a.conversationWindow.Style = lipgloss.NewStyle().
+			BorderStyle(lipgloss.RoundedBorder()).
+			BorderForeground(theme.CurrentTheme.Primary.GetColor()).
+			Align(lipgloss.Left)
+		a.statusBar.UpdateStyle()
+		a.menu.list.Styles.Title = theme.BaseStyle.Title.
+			Foreground(theme.CurrentTheme.Primary.GetColor())
+		a.settingsMenu.list.Styles.Title = theme.BaseStyle.Title.
+			Foreground(theme.CurrentTheme.Primary.GetColor())
+		a.glamourMenu.list.Styles.Title = theme.BaseStyle.Title.
+			Foreground(theme.CurrentTheme.Primary.GetColor())
+		a.systemPromptSettings.list.Styles.Title = theme.BaseStyle.Title.
+			Foreground(theme.CurrentTheme.Primary.GetColor())
+		return a, nil
+	case SetViewMsg:
+		a.currentView = msg.view
+		if msg.view == "chat" {
+			a.showMenu = true
+			// Clear any leftover content
+			a.conversationWindow.SetContent("")
+		}
+		return a, nil
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c":
 			return a, tea.Quit
 		case "ctrl+s":
 			a.currentView = "settings"
+		case "ctrl+l":
+			a.currentView = "conversations"
+		case "ctrl+t":
+			// Start a new conversation
+			a.messages = make([]Message, 0)
+			a.nextMessageID = 1
+			a.currentConversationID = ""
+			a.statusBar.SetConversationTitle("New Conversation")
+			a.currentView = "chat"
+			a.showMenu = false
+			a.updateConversationView()
 		case "esc":
-			if a.currentView == "glamour" || a.currentView == "username" || a.currentView == "apikeys" || a.currentView == "systemprompts" {
+			if a.currentView == "conversations" {
+				// Let the conversation list handle its own escape key
+				break
+			} else if a.currentView == "glamour" || a.currentView == "username" || a.currentView == "apikeys" || a.currentView == "systemprompts" || a.currentView == "theme" {
+				// Let the systemprompts view handle its own escape key for nested views
+				if a.currentView == "systemprompts" {
+					break
+				}
 				a.currentView = "settings"
 			} else if a.currentView == "settings" {
 				a.currentView = "chat"
@@ -135,9 +184,10 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// Clear input and scroll
 				a.input.Reset()
 
-				// If this is the first message, generate a title
+				// If this is the first message, generate a title and create conversation in DB
 				if len(a.messages) == 1 {
 					go a.generateTitle(userInput)
+					a.currentConversationID = uuid.New().String()
 				}
 
 				// Send message to provider
@@ -181,12 +231,56 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 					// Update conversation window
 					a.updateConversationView()
+
+					// Save to database if we have a current conversation
+					if a.currentConversationID != "" {
+						if len(a.messages) == 2 { // First user message + first AI response
+							// Save the entire conversation for the first exchange
+							conv := &database.Conversation{
+								ID:        a.currentConversationID,
+								Title:     a.statusBar.conversationTitle,
+								Provider:  a.config.CurrentProvider,
+								Model:     a.config.CurrentModel,
+								CreatedAt: time.Now(),
+								UpdatedAt: time.Now(),
+								Messages:  make([]database.Message, len(a.messages)),
+							}
+
+							// Convert UI messages to database messages
+							for i, msg := range a.messages {
+								conv.Messages[i] = database.Message{
+									ID:             uuid.New().String(),
+									ConversationID: conv.ID,
+									Role:           string(msg.Type),
+									Content:        msg.Content,
+									CreatedAt:     msg.Timestamp,
+								}
+							}
+
+							if err := a.db.SaveConversation(conv); err != nil {
+								fmt.Printf("Error saving conversation: %v\n", err)
+							}
+						} else if len(a.messages) > 2 { // Subsequent messages
+							// Add just the new message
+							lastMsg := a.messages[len(a.messages)-1]
+							dbMsg := &database.Message{
+								ID:             uuid.New().String(),
+								ConversationID: a.currentConversationID,
+								Role:           string(lastMsg.Type),
+								Content:        lastMsg.Content,
+								CreatedAt:      lastMsg.Timestamp,
+							}
+							if err := a.db.AddMessage(dbMsg); err != nil {
+								fmt.Printf("Error adding message: %v\n", err)
+							}
+						}
+					}
 				}()
 			}
 		}
 
 		// Handle menu toggle
-		if msg.String() == "m" || msg.String() == "ctrl+m" {
+		if msg.String() == "/" {
 			if a.input.Value() == "" {
 				a.showMenu = !a.showMenu
 				return a, nil
@@ -206,9 +300,13 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// Handle menu selection
 				switch selected.title {
 				case "New Conversation":
-					// TODO: Implement new conversation
+					a.messages = make([]Message, 0)
+					a.nextMessageID = 1
+					a.currentConversationID = ""
+					a.statusBar.SetConversationTitle("New Conversation")
+					a.updateConversationView()
 				case "Conversations":
-					// TODO: Implement conversation list
+					a.currentView = "conversations"
 				case "Settings":
 					a.currentView = "settings"
 				case "Help":
@@ -239,6 +337,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.usernameSettings.SetSize(msg.Width, msg.Height)
 		a.apiKeySettings.SetSize(msg.Width, msg.Height)
 		a.systemPromptSettings.SetSize(msg.Width, msg.Height)
+		a.conversationList.SetSize(msg.Width, msg.Height)
 
 		// Re-render messages with new width
 		a.updateConversationView()
@@ -257,6 +356,10 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		
 		cmds = append(cmds, settingsCmd)
+	} else if a.currentView == "conversations" {
+		var listCmd tea.Cmd
+		a.conversationList, listCmd = a.conversationList.Update(msg)
+		cmds = append(cmds, listCmd)
 	} else if a.currentView == "glamour" {
 		var glamourCmd tea.Cmd
 		a.glamourMenu, glamourCmd = a.glamourMenu.Update(msg)
@@ -273,6 +376,10 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var systemPromptCmd tea.Cmd
 		a.systemPromptSettings, systemPromptCmd = a.systemPromptSettings.Update(msg)
 		cmds = append(cmds, systemPromptCmd)
+	} else if a.currentView == "theme" {
+		var themeCmd tea.Cmd
+		a.settingsMenu.themeSettings, themeCmd = a.settingsMenu.themeSettings.Update(msg)
+		cmds = append(cmds, themeCmd)
 	} else {
 		a.conversationWindow, cmd = a.conversationWindow.Update(msg)
 		cmds = append(cmds, cmd)
@@ -302,6 +409,8 @@ func (a *App) View() string {
 	switch a.currentView {
 	case "settings":
 		return a.settingsView()
+	case "conversations":
+		return a.conversationList.View()
 	case "glamour":
 		return a.glamourMenu.View()
 	case "username":
@@ -310,6 +419,8 @@ func (a *App) View() string {
 		return a.apiKeySettings.View()
 	case "systemprompts":
 		return a.systemPromptSettings.View()
+	case "theme":
+		return a.settingsMenu.themeSettings.View()
 	default:
 		return a.chatView()
 	}
@@ -353,6 +464,12 @@ func (a *App) generateTitle(userInput string) {
 		title, err := provider.SendMessage(context.Background(), userInput, titleSystemPrompt, "llama-3.3-70b-versatile")
 		if err == nil {
 			a.statusBar.SetConversationTitle(title)
+			// Update conversation title in database if we have a current conversation
+			if a.currentConversationID != "" {
+				if err := a.db.UpdateConversationTitle(a.currentConversationID, title); err != nil {
+					fmt.Printf("Error updating conversation title: %v\n", err)
+				}
+			}
 		}
 	}
 }

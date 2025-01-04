@@ -5,6 +5,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/tedfulk/goatmeal/config"
+	"github.com/tedfulk/goatmeal/ui/theme"
 )
 
 type UsernameSettings struct {
@@ -16,10 +17,8 @@ type UsernameSettings struct {
 
 func NewUsernameSettings(cfg *config.Config) UsernameSettings {
 	ti := textinput.New()
-	ti.Placeholder = "Enter username"
-	ti.Width = 40
+	ti.Placeholder = "Enter new username"
 	ti.Focus()
-	ti.SetValue(cfg.Settings.Username)
 
 	return UsernameSettings{
 		textInput: ti,
@@ -32,38 +31,33 @@ func (u UsernameSettings) Update(msg tea.Msg) (UsernameSettings, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "q":
-			return u, tea.Quit
-		case "enter":
-			// Update the config
-			u.config.Settings.Username = u.textInput.Value()
-			manager, err := config.NewManager()
-			if err == nil {
+		switch msg.Type {
+		case tea.KeyEnter:
+			if u.textInput.Value() != "" {
+				u.config.Settings.Username = u.textInput.Value()
+				manager, err := config.NewManager()
+				if err == nil {
 					manager.UpdateSettings(u.config.Settings)
+				}
 			}
 		}
+
+		u.textInput, cmd = u.textInput.Update(msg)
+		return u, cmd
 	}
 
-	u.textInput, cmd = u.textInput.Update(msg)
-	return u, cmd
+	return u, nil
 }
 
 func (u UsernameSettings) View() string {
-	menuStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(primaryColor).
-		Padding(1, 2).
-		Width(50)
+	menuStyle := theme.BaseStyle.Menu.
+		BorderForeground(theme.CurrentTheme.Primary.GetColor())
 
-	titleStyle := lipgloss.NewStyle().
-		Foreground(primaryColor).
-		Bold(true).
-		Width(46).
-		Align(lipgloss.Center)
+	titleStyle := theme.BaseStyle.Title.
+		Foreground(theme.CurrentTheme.Primary.GetColor())
 
 	helpStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#666666")).
+		Foreground(theme.CurrentTheme.Secondary.GetColor()).
 		Align(lipgloss.Center)
 
 	menuContent := lipgloss.JoinVertical(

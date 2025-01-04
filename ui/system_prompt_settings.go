@@ -3,21 +3,22 @@ package ui
 import (
 	"os"
 	"os/exec"
-	"path/filepath"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/tedfulk/goatmeal/config"
+	"github.com/tedfulk/goatmeal/ui/theme"
 )
 
 type SystemPromptMenuItem struct {
-	title string
+	title       string
+	description string
 }
 
 func (i SystemPromptMenuItem) Title() string       { return i.title }
-func (i SystemPromptMenuItem) Description() string { return "" }
+func (i SystemPromptMenuItem) Description() string { return i.description }
 func (i SystemPromptMenuItem) FilterValue() string { return i.title }
 
 type SystemPromptSettings struct {
@@ -30,10 +31,9 @@ type SystemPromptSettings struct {
 }
 
 func NewSystemPromptSettings(cfg *config.Config) SystemPromptSettings {
-	// Create list items for actions
 	items := []list.Item{
-		SystemPromptMenuItem{title: "Add System Prompt"},
-		SystemPromptMenuItem{title: "Delete System Prompt"},
+		SystemPromptMenuItem{title: "Add System Prompt", description: "Add a new system prompt"},
+		SystemPromptMenuItem{title: "Delete System Prompt", description: "Delete an existing system prompt"},
 	}
 
 	// Setup list
@@ -50,10 +50,8 @@ func NewSystemPromptSettings(cfg *config.Config) SystemPromptSettings {
 	}
 	l.AdditionalFullHelpKeys = l.AdditionalShortHelpKeys
 	l.SetFilteringEnabled(false)
-	l.Styles.Title = lipgloss.NewStyle().
-		Foreground(primaryColor).
-		Bold(true).
-		Padding(0, 0, 1, 2)
+	l.Styles.Title = theme.BaseStyle.Title.
+		Foreground(theme.CurrentTheme.Primary.GetColor())
 
 	return SystemPromptSettings{
 		list:           l,
@@ -68,18 +66,27 @@ func (s SystemPromptSettings) Update(msg tea.Msg) (SystemPromptSettings, tea.Cmd
 
 	if s.showDeleteView {
 		var deleteCmd tea.Cmd
-		s.deleteView, deleteCmd = s.deleteView.Update(msg)
+		newDeleteView, deleteCmd := s.deleteView.Update(msg)
+		if newDeleteView == nil {
+			s.showDeleteView = false
+			return s, nil
+		}
+		s.deleteView = newDeleteView
 		return s, deleteCmd
 	}
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		switch msg.Type {
-		case tea.KeyEnter:
+		switch msg.String() {
+		case "esc":
+			return s, func() tea.Msg {
+				return SetViewMsg{view: "settings"}
+			}
+		case "enter":
 			selected := s.list.SelectedItem().(SystemPromptMenuItem)
 			switch selected.title {
 			case "Add System Prompt":
-				go s.openSystemPromptsInEditor()
+					go s.openSystemPromptsInEditor()
 			case "Delete System Prompt":
 				s.showDeleteView = true
 				s.deleteView = NewDeleteSystemPromptsView(s.config)
@@ -96,22 +103,15 @@ func (s SystemPromptSettings) View() string {
 		return s.deleteView.View()
 	}
 
-	menuStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(primaryColor).
-		Padding(1, 1).
-		Width(36).
-		Height(s.height - 18)
+	menuStyle := theme.BaseStyle.Menu.
+		BorderForeground(theme.CurrentTheme.Primary.GetColor())
 
-	titleStyle := lipgloss.NewStyle().
-		Foreground(primaryColor).
-		Bold(true).
-		Width(26).
-		Align(lipgloss.Center)
+	titleStyle := theme.BaseStyle.Title.
+		Foreground(theme.CurrentTheme.Primary.GetColor())
 
 	content := lipgloss.JoinVertical(
 		lipgloss.Left,
-		titleStyle.Render("  System Prompt Settings"),
+		titleStyle.Render("System Prompt Settings"),
 		s.list.View(),
 	)
 
@@ -127,39 +127,39 @@ func (s SystemPromptSettings) View() string {
 func (s *SystemPromptSettings) SetSize(width, height int) {
 	s.width = width
 	s.height = height
-	s.list.SetSize(40, height-18)
-	
-	if s.deleteView != nil {
-		s.deleteView.SetSize(width, height)
-	}
+	s.list.SetSize(width-4, height-12)
 }
 
 func (s *SystemPromptSettings) openSystemPromptsInEditor() {
-	// Get the default editor from environment variables
 	editor := os.Getenv("EDITOR")
 	if editor == "" {
-		editor = os.Getenv("VISUAL")
-	}
-	if editor == "" {
-		// Try common editors in order of preference
-		if _, err := exec.LookPath("nvim"); err == nil {
-			editor = "nvim"
-		} else if _, err := exec.LookPath("nano"); err == nil {
-			editor = "nano"
-		} else {
-			editor = "vim"
-		}
+		editor = "vim"
 	}
 
-	// Get the config file path
-	homeDir, err := os.UserHomeDir()
+	// Create a temporary file
+	tmpfile, err := os.CreateTemp("", "system-prompt-*.txt")
 	if err != nil {
 		return
 	}
-	configPath := filepath.Join(homeDir, ".config", "goatmeal", "config.yaml")
+	defer os.Remove(tmpfile.Name())
 
-	// Open the config file in the editor
-	cmd := exec.Command(editor, configPath)
+	// Write template or existing content
+	template := `# System Prompt Template
+# Enter your system prompt below. The first line starting with "Title:" will be used as the prompt title.
+# Lines starting with # will be ignored.
+# Example:
+# Title: My Custom Assistant
+# You are a helpful assistant...
+
+Title: 
+`
+	if _, err := tmpfile.Write([]byte(template)); err != nil {
+		return
+	}
+	tmpfile.Close()
+
+	// Open editor
+	cmd := exec.Command(editor, tmpfile.Name())
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -167,4 +167,7 @@ func (s *SystemPromptSettings) openSystemPromptsInEditor() {
 	if err := cmd.Run(); err != nil {
 		return
 	}
+
+	// TODO: Implement reading and processing the content
+	// This part would need to be implemented based on your config structure
 } 

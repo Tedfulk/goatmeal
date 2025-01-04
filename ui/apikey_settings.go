@@ -9,6 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/tedfulk/goatmeal/config"
+	"github.com/tedfulk/goatmeal/ui/theme"
 )
 
 // SetViewMsg is used to change the current view
@@ -43,8 +44,8 @@ type APIKeySettings struct {
 	config    *config.Config
 	width     int
 	height    int
-	inputting bool
 	selected  string
+	inputting bool
 }
 
 func NewAPIKeySettings(cfg *config.Config) APIKeySettings {
@@ -58,7 +59,6 @@ func NewAPIKeySettings(cfg *config.Config) APIKeySettings {
 		APIKeyMenuItem{provider: "tavily", hasKey: cfg.APIKeys["tavily"] != ""},
 	}
 
-	// Setup list
 	l := list.New(items, list.NewDefaultDelegate(), 0, 0)
 	l.Title = ""
 	l.SetShowHelp(true)
@@ -72,12 +72,9 @@ func NewAPIKeySettings(cfg *config.Config) APIKeySettings {
 	}
 	l.AdditionalFullHelpKeys = l.AdditionalShortHelpKeys
 	l.SetFilteringEnabled(false)
-	l.Styles.Title = lipgloss.NewStyle().
-		Foreground(primaryColor).
-		Bold(true).
-		Padding(0, 0, 1, 2)
+	l.Styles.Title = theme.BaseStyle.Title.
+		Foreground(theme.CurrentTheme.Primary.GetColor())
 
-	// Setup text input
 	ti := textinput.New()
 	ti.Placeholder = "Enter API key"
 	ti.Width = 40
@@ -157,17 +154,11 @@ func (a APIKeySettings) Update(msg tea.Msg) (APIKeySettings, tea.Cmd) {
 }
 
 func (a APIKeySettings) View() string {
-	menuStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(primaryColor).
-		Padding(1, 1).
-		Width(52)
+	menuStyle := theme.BaseStyle.Menu.
+		BorderForeground(theme.CurrentTheme.Primary.GetColor())
 
-	titleStyle := lipgloss.NewStyle().
-		Foreground(primaryColor).
-		Bold(true).
-		Width(48).
-		Align(lipgloss.Center)
+	titleStyle := theme.BaseStyle.Title.
+		Foreground(theme.CurrentTheme.Primary.GetColor())
 
 	var content string
 	if a.inputting {

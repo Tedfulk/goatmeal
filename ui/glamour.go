@@ -8,6 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/tedfulk/goatmeal/config"
+	"github.com/tedfulk/goatmeal/ui/theme"
 )
 
 type GlamourMenuItem struct {
@@ -55,10 +56,8 @@ func NewGlamourMenu(cfg *config.Config) GlamourMenu {
 	}
 	l.AdditionalFullHelpKeys = l.AdditionalShortHelpKeys
 	l.SetFilteringEnabled(false)
-	l.Styles.Title = lipgloss.NewStyle().
-		Foreground(primaryColor).
-		Bold(true).
-		Padding(0, 0, 1, 2)
+	l.Styles.Title = theme.BaseStyle.Title.
+		Foreground(theme.CurrentTheme.Primary.GetColor())
 
 	return GlamourMenu{
 		list:   l,
@@ -106,17 +105,11 @@ func (m GlamourMenu) Update(msg tea.Msg) (GlamourMenu, tea.Cmd) {
 }
 
 func (m GlamourMenu) View() string {
-	menuStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(primaryColor).
-		Padding(1, 1).
-		Width(52)
+	menuStyle := theme.BaseStyle.Menu.
+		BorderForeground(theme.CurrentTheme.Primary.GetColor())
 
-	titleStyle := lipgloss.NewStyle().
-		Foreground(primaryColor).
-		Bold(true).
-		Width(48).
-		Align(lipgloss.Center)
+	titleStyle := theme.BaseStyle.Title.
+		Foreground(theme.CurrentTheme.Primary.GetColor())
 
 	menuContent := lipgloss.JoinVertical(
 		lipgloss.Left,

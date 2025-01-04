@@ -4,11 +4,12 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/tedfulk/goatmeal/ui/theme"
 )
 
 type MenuItem struct {
 	title       string
-	description    string
+	description string
 }
 
 func (i MenuItem) Title() string       { return i.title }
@@ -26,23 +27,23 @@ func NewMenu() Menu {
 	items := []list.Item{
 		MenuItem{
 			title:       "New Conversation",
-			description:    "Start a new chat (ctrl+t)",
+			description: "Start a new chat (ctrl+t)",
 		},
 		MenuItem{
 			title:       "Conversations",
-			description:    "List conversation history (ctrl+l)",
+			description: "List conversation history (ctrl+l)",
 		},
 		MenuItem{
 			title:       "Settings",
-			description:    "Configure settings (ctrl+s)",
+			description: "Configure settings (ctrl+s)",
 		},
 		MenuItem{
 			title:       "Help",
-			description:    "View keyboard shortcuts (ctrl+h)",
+			description: "View keyboard shortcuts (ctrl+h)",
 		},
 		MenuItem{
 			title:       "Quit",
-			description:    "(ctrl+c, q)",
+			description: "(ctrl+c, q)",
 		},
 	}
 
@@ -50,10 +51,8 @@ func NewMenu() Menu {
 	l.Title = ""
 	l.SetShowStatusBar(false)
 	l.SetFilteringEnabled(false)
-	l.Styles.Title = lipgloss.NewStyle().
-		Foreground(primaryColor).
-		Bold(true).
-		Padding(0, 0, 1, 2)
+	l.Styles.Title = theme.BaseStyle.Title.
+		Foreground(theme.CurrentTheme.Primary.GetColor())
 
 	return Menu{
 		list: l,
@@ -67,19 +66,11 @@ func (m Menu) Update(msg tea.Msg) (Menu, tea.Cmd) {
 }
 
 func (m Menu) View() string {
-	// Create a style for the menu container
-	menuStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(primaryColor).
-		Padding(1, 2).
-		Width(50)
+	menuStyle := theme.BaseStyle.Menu.
+		BorderForeground(theme.CurrentTheme.Primary.GetColor())
 
-	// Create the menu content with centered title
-	titleStyle := lipgloss.NewStyle().
-		Foreground(primaryColor).
-		Bold(true).
-		Width(46).
-		Align(lipgloss.Center)
+	titleStyle := theme.BaseStyle.Title.
+		Foreground(theme.CurrentTheme.Primary.GetColor())
 
 	menuContent := lipgloss.JoinVertical(
 		lipgloss.Left,
@@ -87,7 +78,6 @@ func (m Menu) View() string {
 		m.list.View(),
 	)
 
-	// Center the menu in the window
 	return lipgloss.Place(
 		m.width,
 		m.height,
