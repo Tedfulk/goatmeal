@@ -39,7 +39,7 @@ func NewMenu() Menu {
 		},
 		MenuItem{
 			title:       "Help",
-			description: "View keyboard shortcuts and commands (ctrl+h)",
+			description: "View keyboard shortcuts (ctrl+h)",
 		},
 		MenuItem{
 			title:       "Quit",
