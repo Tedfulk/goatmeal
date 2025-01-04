@@ -53,16 +53,18 @@ api_keys:
   deepseek: "your-api-key"
   groq: "your-api-key"
   tavily: "your-api-key"
-
-system_prompts:
-  default: "You are a helpful assistant."
-  code_helper: "You are an expert code assistant."
-  creative: "You are a creative assistant."
-
+current_model: llama-3.3-70b-versatile
+current_provider: groq
+current_system_prompt: You are a helpful AI assistant.
 settings:
-  output_glamour: true
-  theme:
-    name: "Default"
+    output_glamour: true
+    conversation_retention: 30
+    theme:
+        name: Default
+    username: teddy
+system_prompts:
+    - content: You are a helpful AI assistant.
+      title: General
 ```
 
 ## Usage
@@ -95,48 +97,24 @@ settings:
 - `d`: Delete selected conversation
 - `esc`: Return to chat
 
-## Development
-
-### Prerequisites
-
-- Go 1.23 or higher
-- SQLite
-
-### Building from Source
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/tedfulk/goatmeal.git
-   cd goatmeal
-   ```
-
-2. Install dependencies:
-   ```bash
-   go mod download
-   ```
-
-3. Build:
-   ```bash
-   go build
-   ```
-
 ### Project Structure
 
-```
+```md
 goatmeal/
-├── config/           # Configuration management
-├── chat/
-│   └── providers/    # AI provider implementations
-├── search/          # Web search integration
-├── database/        # SQLite database management
-├── ui/             # Terminal UI components
-└── main.go         # Application entry point
+ ├── config
+ ├── database
+ ├── main.go
+ ├── scripts
+ ├── services
+ │   ├── providers
+ │   │   ├── anthropic
+ │   │   ├── deepseek
+ │   │   ├── gemini
+ │   │   ├── groq
+ │   │   ├── openai
+ │   │   ├── openai_compatible.go
+ │   │   └── provider.go
+ │   ├── web
+ │   │   └── tavily
+ └── ui
 ```
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## License
-
-MIT License - see [LICENSE](LICENSE) for details. 
