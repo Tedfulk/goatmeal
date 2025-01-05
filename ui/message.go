@@ -111,12 +111,19 @@ func (m Message) View(width int) string {
 		// AI message rendering with optional Glamour
 		var renderedContent string
 		if m.Config.Settings.OutputGlamour {
-			// Use Glamour for markdown rendering
+			// Use Glamour for markdown rendering with word wrap
 			glamourStyle := "dark"
-			if rendered, err := glamour.Render(m.Content, glamourStyle); err == nil {
-				renderedContent = rendered
+			renderer, err := glamour.NewTermRenderer(
+				glamour.WithStylePath(glamourStyle),
+				glamour.WithWordWrap(120),
+			)
+			if err == nil {
+				if rendered, err := renderer.Render(m.Content); err == nil {
+					renderedContent = rendered
+				} else {
+					renderedContent = m.Content
+				}
 			} else {
-				// Fallback to plain text if Glamour fails
 				renderedContent = m.Content
 			}
 		} else {

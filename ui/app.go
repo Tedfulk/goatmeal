@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/atotto/clipboard"
+	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -85,7 +87,7 @@ func NewApp(cfg *config.Config, db *database.DB) *App {
 }
 
 func (a *App) Init() tea.Cmd {
-	return nil
+	return tea.EnableMouseCellMotion
 }
 
 func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -114,7 +116,6 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.currentView = msg.view
 		if msg.view == "chat" {
 			a.showMenu = true
-			// Clear any leftover content
 			a.conversationWindow.SetContent("")
 		} else if msg.view == "conversations" {
 			a.refreshConversationList()
@@ -123,7 +124,10 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c":
-			return a, tea.Quit
+			return a, tea.Batch(
+				tea.DisableMouse,
+				tea.Quit,
+			)
 		case "ctrl+s":
 			a.currentView = "settings"
 		case "ctrl+l":
@@ -167,17 +171,38 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "enter":
 			input := a.input.Value()
 			if strings.HasPrefix(input, "#") {
-				// Handle message opening to default editor
-				if msgNum, err := strconv.Atoi(strings.TrimPrefix(input, "#")); err == nil {
-					for _, m := range a.messages {
-						if m.ID == msgNum {
-							go a.openMessageInEditor(m)
-							break
+				input = strings.TrimPrefix(input, "#")
+				if strings.HasPrefix(input, "o") {
+					// Handle message opening to default editor
+					if msgNum, err := strconv.Atoi(strings.TrimPrefix(input, "o")); err == nil {
+						for _, m := range a.messages {
+							if m.ID == msgNum {
+								go a.openMessageInEditor(m)
+								break
+							}
 						}
 					}
-					a.input.Reset()
-					return a, nil
+				} else if strings.HasPrefix(input, "c") {
+					// Handle message copying to clipboard
+					if msgNum, err := strconv.Atoi(strings.TrimPrefix(input, "c")); err == nil {
+						for _, m := range a.messages {
+							if m.ID == msgNum {
+								if err := clipboard.WriteAll(m.Content); err != nil {
+									a.statusBar.SetError(fmt.Sprintf("Failed to copy: %v", err))
+								} else {
+									preview := m.Content
+									if len(preview) > 20 {
+										preview = preview[:20] + "..."
+									}
+									a.statusBar.SetTemporaryText(fmt.Sprintf("📋 Copied: %s", preview))
+								}
+								break
+							}
+						}
+					}
 				}
+				a.input.Reset()
+				return a, nil
 			}
 
 			// Handle search mode
@@ -222,8 +247,18 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					a.input.Reset()
 					a.isSearchMode = false
 					
+					// Start spinner before search
+					a.statusBar.SetSearchMode(true)
+					a.statusBar.SetLoading(true)
+					
 					// Perform search in goroutine
 					go func() {
+						defer func() {
+							// Stop spinner and reset search mode when done
+							a.statusBar.SetLoading(false)
+							a.statusBar.SetSearchMode(false)
+						}()
+						
 						tavilyClient := tavily.NewClient(a.config.APIKeys["tavily"])
 						searchResp, err := tavilyClient.Search(query, domains)
 						
@@ -306,7 +341,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						
 						a.updateConversationView()
 					}()
-					return a, nil
+					
+					// Return spinner tick command
+					return a, a.statusBar.spinner.Tick
 				}
 			}
 
@@ -327,8 +364,16 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					a.currentConversationID = uuid.New().String()
 				}
 
+				// Start spinner before sending message
+				a.statusBar.SetLoading(true)
+				
 				// Send message to provider
 				go func() {
+					defer func() {
+						// Stop spinner when done
+						a.statusBar.SetLoading(false)
+					}()
+
 					var response string
 					var err error
 
@@ -339,20 +384,36 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					if apiKey == "" {
 						response = fmt.Sprintf("Error: Please provide an API key for %s in the settings", a.config.CurrentProvider)
 					} else {
+						// Build conversation history
+						var conversationHistory []string
+						for _, msg := range a.messages {
+							if msg.Type == UserMessage {
+								conversationHistory = append(conversationHistory, "User: "+msg.Content)
+							} else if msg.Type == ProviderMessage {
+								conversationHistory = append(conversationHistory, "Assistant: "+msg.Content)
+							}
+						}
+						
+						// Join history with newlines
+						history := strings.Join(conversationHistory, "\n")
+						
+						// Add current message
+						fullPrompt := history + "\nUser: " + userInput
+
 						switch providerName {
 						case "anthropic":
 							provider := anthropic.NewProvider(apiKey)
-							response, err = provider.SendMessage(context.Background(), userInput, a.config.CurrentSystemPrompt, a.config.CurrentModel)
+							response, err = provider.SendMessage(context.Background(), fullPrompt, a.config.CurrentSystemPrompt, a.config.CurrentModel)
 						case "gemini":
 							provider := gemini.NewProvider(apiKey)
-							response, err = provider.SendMessage(context.Background(), userInput, a.config.CurrentSystemPrompt, a.config.CurrentModel)
+							response, err = provider.SendMessage(context.Background(), fullPrompt, a.config.CurrentSystemPrompt, a.config.CurrentModel)
 						default:
 							cfg := providers.OpenAICompatibleConfig{
 								Name:    providerName,
 								APIKey:  apiKey,
 							}
 							provider := providers.NewOpenAICompatibleProvider(cfg)
-							response, err = provider.SendMessage(context.Background(), userInput, a.config.CurrentSystemPrompt, a.config.CurrentModel)
+							response, err = provider.SendMessage(context.Background(), fullPrompt, a.config.CurrentSystemPrompt, a.config.CurrentModel)
 						}
 
 						if err != nil {
@@ -422,6 +483,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						}
 					}
 				}()
+				
+				// Return spinner tick command
+				return a, a.statusBar.spinner.Tick
 			}
 		}
 
@@ -437,6 +501,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.String() == "/" {
 			if a.input.Value() == "" {
 				a.isSearchMode = true
+				a.statusBar.SetSearchMode(true)
 				a.input.Set("/")
 				return a, nil
 			}
@@ -485,11 +550,21 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return a, nil
 		}
 
+		// In the Update method, where search mode is handled:
+		if msg.String() == "backspace" {
+			if a.input.Value() == "/" {
+				a.isSearchMode = false
+				a.statusBar.SetSearchMode(false)
+				a.input.Reset()
+				return a, nil
+			}
+		}
+
 	case tea.WindowSizeMsg:
 		a.height = msg.Height
 		a.width = msg.Width
 		
-		// Update viewport and input sizes
+
 		a.conversationWindow.Width = msg.Width - 4
 		a.conversationWindow.Height = msg.Height - 6
 		a.input.Width = msg.Width - 4
@@ -505,6 +580,30 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Re-render messages with new width
 		a.updateConversationView()
 		a.menu.SetSize(msg.Width, msg.Height)
+
+	case tea.MouseMsg:
+		if msg.Type == tea.MouseLeft {
+			// Check if click is in status bar
+			if a.statusBar.inBounds(msg.X, msg.Y) {
+				// Start new conversation
+				a.messages = make([]Message, 0)
+				a.nextMessageID = 1
+				a.currentConversationID = ""
+				a.statusBar.SetConversationTitle("New Conversation")
+				a.currentView = "chat"
+				a.showMenu = false
+				a.updateConversationView()
+				a.refreshConversationList()
+				return a, nil
+			}
+		}
+
+	case spinner.TickMsg:
+		var cmd tea.Cmd
+		if a.statusBar.isLoading {
+			cmd = a.statusBar.Update(msg)
+		}
+		return a, cmd
 	}
 
 	// Update child components
@@ -561,9 +660,37 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // updateConversationView updates the conversation window content
 func (a *App) updateConversationView() {
 	var content string
-	for _, msg := range a.messages {
-		content += msg.View(a.width) + "\n\n"
+	var lineCount int
+	
+	// First pass: count lines up to the last provider message
+	for i, msg := range a.messages {
+		if i < len(a.messages)-1 {
+			content += msg.View(a.width) + "\n\n"
+			// Count newlines in the message plus the two we add
+			lineCount += strings.Count(msg.View(a.width), "\n") + 2
+		}
 	}
+	
+	// Add the last message
+	if len(a.messages) > 0 {
+		lastMsg := a.messages[len(a.messages)-1]
+		content += lastMsg.View(a.width) + "\n\n"
+		
+		// If it's a provider message or search message, scroll to its position
+		if lastMsg.Type == ProviderMessage || lastMsg.Type == SearchMessage {
+			a.conversationWindow.SetContent(content)
+			a.conversationWindow.GotoTop() // First go to top
+			// Then scroll down to the last provider/search message's position
+			a.conversationWindow.LineDown(lineCount)
+		} else {
+			// For user messages, just scroll to bottom as before
+			a.conversationWindow.SetContent(content)
+			a.conversationWindow.GotoBottom()
+		}
+		return
+	}
+	
+	// If no messages, just set content
 	a.conversationWindow.SetContent(content)
 }
 

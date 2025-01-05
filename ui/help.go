@@ -35,7 +35,8 @@ func NewHelpView() *HelpView {
 * **?**: Toggle menu
 * **/**:  Enter search mode
 * **enter**: Send message
-* **#n**: Open message number 'n' in editor
+* **#o[n]**: Open message number 'n' in editor (e.g., #o1)
+* **#c[n]**: Copy message number 'n' to clipboard (e.g., #c1)
 
 ## Search Mode
 * **/query**: Search for information

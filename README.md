@@ -57,8 +57,8 @@ current_model: llama-3.3-70b-versatile
 current_provider: groq
 current_system_prompt: You are a helpful AI assistant.
 settings:
-    output_glamour: true
-    conversation_retention: 30
+    outputglamour: true
+    conversationretention: 30
     theme:
         name: Default
     username: teddy
@@ -83,7 +83,8 @@ system_prompts:
 - `?`: Toggle menu
 - `/`: Enter search mode
 - `enter`: Send message
-- `#n`: Open message number 'n' in editor
+- `#o[n]`: Open message number 'n' in editor (e.g., #o1)
+- `#c[n]`: Copy message number 'n' to clipboard (e.g., #c1)
 
 ### Search Mode
 

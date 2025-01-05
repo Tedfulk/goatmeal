@@ -26,8 +26,8 @@ type Config struct {
 
 // Settings represents application settings
 type Settings struct {
-	OutputGlamour          bool       `mapstructure:"output_glamour"`
-	ConversationRetention  int        `mapstructure:"conversation_retention"`
+	OutputGlamour          bool       `mapstructure:"outputglamour"`
+	ConversationRetention  int        `mapstructure:"conversationretention"`
 	Theme                  ThemeConfig `mapstructure:"theme"`
 	Username               string     `mapstructure:"username"`
 }

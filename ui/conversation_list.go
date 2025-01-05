@@ -12,7 +12,6 @@ import (
 	"github.com/tedfulk/goatmeal/ui/theme"
 )
 
-// ShowMenuMsg is sent when we want to show the menu
 type ShowMenuMsg struct{}
 
 type ConversationItem struct {
@@ -27,7 +26,6 @@ func (i ConversationItem) Title() string       { return i.title }
 func (i ConversationItem) Description() string { return "" }
 func (i ConversationItem) FilterValue() string { return i.title }
 
-// KeyMap defines the key bindings for the conversation list
 type KeyMap struct {
 	Back key.Binding
 	Delete key.Binding
@@ -72,7 +70,6 @@ func NewConversationListView(db *database.DB, cfg *config.Config) *ConversationL
 		Align(lipgloss.Center).
 		Width(30)
 
-	// Add key bindings
 	l.AdditionalShortHelpKeys = func() []key.Binding {
 		return []key.Binding{
 			DefaultKeyMap.Back,
@@ -82,12 +79,12 @@ func NewConversationListView(db *database.DB, cfg *config.Config) *ConversationL
 	}
 	l.AdditionalFullHelpKeys = l.AdditionalShortHelpKeys
 
-	// Initialize viewport
 	vp := viewport.New(104, 34)
 	vp.Style = lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(theme.CurrentTheme.Primary.GetColor()).
 		Padding(1, 1)
+	vp.MouseWheelEnabled = true
 
 	view := &ConversationListView{
 		db:       db,
@@ -202,6 +199,16 @@ func (c *ConversationListView) Update(msg tea.Msg) (*ConversationListView, tea.C
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
+	case tea.MouseMsg:
+		if c.focused == "messages" {
+			switch msg.Type {
+			case tea.MouseWheelUp:
+				c.viewport.LineUp(1)
+			case tea.MouseWheelDown:
+				c.viewport.LineDown(1)
+			}
+		}
+
 	case tea.KeyMsg:
 		// Handle tab key for focus switching
 		if msg.String() == "tab" {
