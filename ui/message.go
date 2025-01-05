@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -27,17 +28,25 @@ type Message struct {
 	Content   string
 	Timestamp time.Time
 	Config    *config.Config
+	codeBlocks []CodeBlock  // Store the code blocks when message is created
 }
 
 // NewMessage creates a new message
-func NewMessage(id int, msgType MessageType, content string, cfg *config.Config) Message {
-	return Message{
+func NewMessage(id int, msgType MessageType, content string, cfg *config.Config, getNextBlockNum func() int) Message {
+	msg := Message{
 		ID:        id,
 		Type:      msgType,
 		Content:   content,
 		Timestamp: time.Now(),
 		Config:    cfg,
 	}
+	
+	// If it's a provider message, process code blocks immediately
+	if msgType == ProviderMessage {
+		msg.codeBlocks = msg.processCodeBlocks(getNextBlockNum)
+	}
+	
+	return msg
 }
 
 // wordWrap wraps text at the specified width
@@ -79,7 +88,7 @@ func (m Message) View(width int) string {
 		Foreground(theme.CurrentTheme.Message.Timestamp.GetColor())
 	
 	timestampStr := timestampStyle.Render(
-		fmt.Sprintf("%s • #%d • %s", prefix, m.ID, m.Timestamp.Format("15:04")),
+		fmt.Sprintf("%s • #m%d • %s", prefix, m.ID, m.Timestamp.Format("15:04")),
 	)
 
 	baseStyle := theme.BaseStyle.Message
@@ -108,26 +117,51 @@ func (m Message) View(width int) string {
 				timestampStr,
 			))
 	} else {
-		// AI message rendering with optional Glamour
 		var renderedContent string
 		if m.Config.Settings.OutputGlamour {
-			// Use Glamour for markdown rendering with word wrap
+			content := m.Content
+			
+			// Use stored code blocks to add numbers
+			re := regexp.MustCompile("(?ms)```(.+?)```")
+			blockIndex := 0
+			content = re.ReplaceAllStringFunc(content, func(block string) string {
+				if blockIndex < len(m.codeBlocks) {
+					blockNum := m.codeBlocks[blockIndex].Number
+					blockIndex++
+					return block + fmt.Sprintf("\n[#b%d]\n", blockNum)
+				}
+				return block
+			})
+
 			glamourStyle := "dark"
 			renderer, err := glamour.NewTermRenderer(
 				glamour.WithStylePath(glamourStyle),
 				glamour.WithWordWrap(120),
 			)
 			if err == nil {
-				if rendered, err := renderer.Render(m.Content); err == nil {
+				if rendered, err := renderer.Render(content); err == nil {
 					renderedContent = rendered
 				} else {
-					renderedContent = m.Content
+					renderedContent = content
 				}
 			} else {
-				renderedContent = m.Content
+				renderedContent = content
 			}
 		} else {
-			renderedContent = m.Content
+			// Similar changes for non-glamour rendering
+			content := m.Content
+			blockIndex := 0
+			
+			content = regexp.MustCompile("(?ms)```(.+?)```").ReplaceAllStringFunc(content, func(block string) string {
+				if blockIndex < len(m.codeBlocks) {
+					blockNum := m.codeBlocks[blockIndex].Number
+					blockIndex++
+					return block + fmt.Sprintf("\n[#b%d]\n", blockNum)
+				}
+				return block
+			})
+			
+			renderedContent = content
 		}
 
 		contentStyle := lipgloss.NewStyle().
@@ -145,4 +179,37 @@ func (m Message) View(width int) string {
 			timestampStr,
 		)
 	}
+}
+
+// Add this struct after the Message struct
+type CodeBlock struct {
+	Number  int
+	Content string
+}
+
+// Add method to process code blocks
+func (m *Message) processCodeBlocks(getNextBlockNum func() int) []CodeBlock {
+	var blocks []CodeBlock
+	
+	re := regexp.MustCompile("(?ms)```(.+?)```")
+	matches := re.FindAllStringSubmatch(m.Content, -1)
+	
+	for _, match := range matches {
+		blockNum := getNextBlockNum()
+		content := strings.TrimSpace(match[1])
+		if idx := strings.Index(content, "\n"); idx != -1 {
+			content = content[idx+1:]
+		}
+		blocks = append(blocks, CodeBlock{
+			Number:  blockNum,
+			Content: content,
+		})
+	}
+	
+	return blocks
+}
+
+// Update ExtractCodeBlocks to use stored blocks
+func (m Message) ExtractCodeBlocks() []CodeBlock {
+	return m.codeBlocks
 } 

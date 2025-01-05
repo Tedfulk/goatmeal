@@ -53,6 +53,7 @@ type App struct {
 	isSearchMode bool
 	searchDomains []string
 	helpView          *HelpView
+	totalCodeBlocks int
 }
 
 func NewApp(cfg *config.Config, db *database.DB) *App {
@@ -83,6 +84,7 @@ func NewApp(cfg *config.Config, db *database.DB) *App {
 		systemPromptSettings: NewSystemPromptSettings(cfg),
 		conversationList: NewConversationListView(db, cfg),
 		helpView:          NewHelpView(),
+		totalCodeBlocks: 0,
 	}
 }
 
@@ -138,6 +140,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.messages = make([]Message, 0)
 			a.nextMessageID = 1
 			a.currentConversationID = ""
+			a.totalCodeBlocks = 0  // Reset code block counter
 			a.statusBar.SetConversationTitle("New Conversation")
 			a.currentView = "chat"
 			a.showMenu = false
@@ -182,9 +185,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 							}
 						}
 					}
-				} else if strings.HasPrefix(input, "c") {
+				} else if strings.HasPrefix(input, "m") {
 					// Handle message copying to clipboard
-					if msgNum, err := strconv.Atoi(strings.TrimPrefix(input, "c")); err == nil {
+					if msgNum, err := strconv.Atoi(strings.TrimPrefix(input, "m")); err == nil {
 						for _, m := range a.messages {
 							if m.ID == msgNum {
 								if err := clipboard.WriteAll(m.Content); err != nil {
@@ -195,6 +198,33 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 										preview = preview[:20] + "..."
 									}
 									a.statusBar.SetTemporaryText(fmt.Sprintf("📋 Copied: %s", preview))
+								}
+								break
+							}
+						}
+					}
+				} else if strings.HasPrefix(input, "b") {
+					// Handle code block copying
+					if blockNum, err := strconv.Atoi(strings.TrimPrefix(input, "b")); err == nil {
+						// Find the last provider message
+						for i := len(a.messages) - 1; i >= 0; i-- {
+							m := a.messages[i]
+							if m.Type == ProviderMessage {
+								// Extract code blocks and find the requested one
+								blocks := m.ExtractCodeBlocks()
+								for _, block := range blocks {
+									if block.Number == blockNum {
+										if err := clipboard.WriteAll(block.Content); err != nil {
+											a.statusBar.SetError(fmt.Sprintf("Failed to copy code block: %v", err))
+										} else {
+											preview := block.Content
+											if len(preview) > 20 {
+												preview = preview[:20] + "..."
+											}
+											a.statusBar.SetTemporaryText(fmt.Sprintf("📋 Copied code block [^%d]: %s", blockNum, preview))
+										}
+										break
+									}
 								}
 								break
 							}
@@ -231,7 +261,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					if len(domains) > 0 {
 						searchMsg += fmt.Sprintf("\nDomains: %s", strings.Join(domains, ", "))
 					}
-					userMsg := NewMessage(a.nextMessageID, UserMessage, searchMsg, a.config)
+					userMsg := NewMessage(a.nextMessageID, UserMessage, searchMsg, a.config, a.getNextCodeBlockNumber)
 					a.messages = append(a.messages, userMsg)
 					a.nextMessageID++
 					
@@ -287,7 +317,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						}
 						
 						// Create and store search result message
-						searchMsg := NewMessage(a.nextMessageID, SearchMessage, response, a.config)
+						searchMsg := NewMessage(a.nextMessageID, SearchMessage, response, a.config, a.getNextCodeBlockNumber)
 						a.messages = append(a.messages, searchMsg)
 						a.nextMessageID++
 						
@@ -350,7 +380,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if input != "" {
 				userInput := input
 				
-				userMsg := NewMessage(a.nextMessageID, UserMessage, userInput, a.config)
+				userMsg := NewMessage(a.nextMessageID, UserMessage, userInput, a.config, a.getNextCodeBlockNumber)
 				a.messages = append(a.messages, userMsg)
 				a.nextMessageID++
 
@@ -422,7 +452,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 
 					// Create and store provider message
-					providerMsg := NewMessage(a.nextMessageID, ProviderMessage, response, a.config)
+					providerMsg := NewMessage(a.nextMessageID, ProviderMessage, response, a.config, a.getNextCodeBlockNumber)
 					a.messages = append(a.messages, providerMsg)
 					a.nextMessageID++
 
@@ -823,4 +853,9 @@ func (a *App) refreshConversationList() {
 	if a.conversationList != nil {
 		a.conversationList.loadConversations()
 	}
-} 
+}
+
+func (a *App) getNextCodeBlockNumber() int {
+	a.totalCodeBlocks++
+	return a.totalCodeBlocks
+}
