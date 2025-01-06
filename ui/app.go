@@ -22,6 +22,8 @@ import (
 	"github.com/tedfulk/goatmeal/services/providers/gemini"
 	"github.com/tedfulk/goatmeal/services/web/tavily"
 	"github.com/tedfulk/goatmeal/ui/theme"
+	"github.com/tedfulk/goatmeal/utils/location"
+	"github.com/tedfulk/goatmeal/utils/prompts"
 )
 
 var (
@@ -54,6 +56,7 @@ type App struct {
 	searchDomains []string
 	helpView          *HelpView
 	totalCodeBlocks int
+	isEnhancedSearch bool
 }
 
 func NewApp(cfg *config.Config, db *database.DB) *App {
@@ -190,10 +193,13 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					if msgNum, err := strconv.Atoi(strings.TrimPrefix(input, "m")); err == nil {
 						for _, m := range a.messages {
 							if m.ID == msgNum {
-								if err := clipboard.WriteAll(m.Content); err != nil {
+								// Get message content and strip search prefixes if present
+								contentToCopy := stripSearchPrefix(m.Content)
+								
+								if err := clipboard.WriteAll(contentToCopy); err != nil {
 									a.statusBar.SetError(fmt.Sprintf("Failed to copy: %v", err))
 								} else {
-									preview := m.Content
+									preview := contentToCopy
 									if len(preview) > 20 {
 										preview = preview[:20] + "..."
 									}
@@ -241,6 +247,24 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					// Remove the leading "/"
 					query := strings.TrimPrefix(input, "/")
 					
+					// Check if this is a search optimization toggle command only
+					if query == "o" {
+						a.isEnhancedSearch = !a.isEnhancedSearch
+						if a.isEnhancedSearch {
+							a.statusBar.SetTemporaryText("Enhanced search mode enabled")
+						} else {
+							a.statusBar.SetTemporaryText("Enhanced search mode disabled")
+						}
+						a.input.Reset()
+						return a, nil
+					}
+					
+					// If query starts with 'o ', treat it as an enhanced search
+					if strings.HasPrefix(query, "o ") {
+						query = strings.TrimPrefix(query, "o ")
+						a.isEnhancedSearch = true
+					}
+					
 					// Check for domain inclusions (marked with +)
 					var domains []string
 					parts := strings.Split(query, "+")
@@ -249,18 +273,33 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					// If there are additional parts, they are domains
 					if len(parts) > 1 {
 						for _, domain := range parts[1:] {
-							domain = strings.TrimSpace(domain)
-							if domain != "" {
-								domains = append(domains, domain)
-							}
+								domain = strings.TrimSpace(domain)
+								if domain != "" {
+									domains = append(domains, domain)
+								}
+						}
+					}
+					
+					// Enhance the query if enhanced search is enabled
+					searchQuery := query
+					if a.isEnhancedSearch {
+						enhanced, err := a.enhanceSearchQuery(query)
+						if err != nil {
+							a.statusBar.SetError(fmt.Sprintf("Failed to enhance query: %v", err))
+						} else {
+							searchQuery = enhanced
 						}
 					}
 					
 					// Create and store user message with domain info
 					searchMsg := fmt.Sprintf("🔍 Searching for: %s", query)
+					if a.isEnhancedSearch {
+						searchMsg = fmt.Sprintf("🔍+ Enhanced search: %s", searchQuery)
+					}
 					if len(domains) > 0 {
 						searchMsg += fmt.Sprintf("\nDomains: %s", strings.Join(domains, ", "))
 					}
+					
 					userMsg := NewMessage(a.nextMessageID, UserMessage, searchMsg, a.config, a.getNextCodeBlockNumber)
 					a.messages = append(a.messages, userMsg)
 					a.nextMessageID++
@@ -290,7 +329,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						}()
 						
 						tavilyClient := tavily.NewClient(a.config.APIKeys["tavily"])
-						searchResp, err := tavilyClient.Search(query, domains)
+						searchResp, err := tavilyClient.Search(searchQuery, domains)
 						
 						var response string
 						if err != nil {
@@ -771,15 +810,6 @@ func (a *App) settingsView() string {
 
 // generateTitle sends a request to generate a conversation title
 func (a *App) generateTitle(userInput string) {
-	const titleSystemPrompt = `Create a concise, 3-5 word phrase as a header for the following query, strictly adhering to the 3-5 word limit and avoiding the use of the word 'title', and do not generate any other text than the 3-5 word summary and do not use any markdown formatting or any asterisks for bold, and do NOT use quotation marks. 
-	Examples of titles:
-		Stock Market Trends
-		Perfect Chocolate Chip Recipe
-		Evolution of Music Streaming
-		Remote Work Productivity Tips
-		Artificial Intelligence in Healthcare
-		Video Game Development Insights`
-
 	apiKey := a.config.APIKeys["groq"]
 	if apiKey != "" {
 		cfg := providers.OpenAICompatibleConfig{
@@ -787,7 +817,7 @@ func (a *App) generateTitle(userInput string) {
 			APIKey:  apiKey,
 		}
 		provider := providers.NewOpenAICompatibleProvider(cfg)
-		title, err := provider.SendMessage(context.Background(), userInput, titleSystemPrompt, "llama-3.3-70b-versatile")
+		title, err := provider.SendMessage(context.Background(), userInput, prompts.GetTitleSystemPrompt(), "llama-3.3-70b-versatile")
 		if err == nil {
 			a.statusBar.SetConversationTitle(title)
 			// Update conversation title in database if we have a current conversation
@@ -858,4 +888,53 @@ func (a *App) refreshConversationList() {
 func (a *App) getNextCodeBlockNumber() int {
 	a.totalCodeBlocks++
 	return a.totalCodeBlocks
+}
+
+// Add this method to the App struct
+func (a *App) enhanceSearchQuery(query string) (string, error) {
+	locationInfo := location.GetFormattedLocationAndTime()
+	
+	// First request to enhance the query
+	fullPrompt := prompts.GetEnhanceSearchPrompt(locationInfo, query)
+	
+	apiKey := a.config.APIKeys["groq"]
+	if apiKey == "" {
+		return query, fmt.Errorf("groq API key not found")
+	}
+	
+	cfg := providers.OpenAICompatibleConfig{
+		Name:    "groq",
+		APIKey:  apiKey,
+	}
+	provider := providers.NewOpenAICompatibleProvider(cfg)
+	
+	enhancedQuery, err := provider.SendMessage(context.Background(), fullPrompt, "", "llama-3.3-70b-versatile")
+	if err != nil {
+		return query, fmt.Errorf("failed to enhance query: %v", err)
+	}
+	
+	// Second request to clean up the enhanced query
+	extractPrompt := prompts.GetExtractQueryPrompt(enhancedQuery)
+	cleanQuery, err := provider.SendMessage(context.Background(), extractPrompt, "", "llama-3.3-70b-versatile")
+	if err != nil {
+		return query, fmt.Errorf("failed to clean enhanced query: %v", err)
+	}
+	
+	// Trim any extra whitespace or newlines
+	cleanQuery = strings.TrimSpace(cleanQuery)
+	
+	return cleanQuery, nil
+}
+
+// Add this helper function to strip search prefixes from messages
+func stripSearchPrefix(content string) string {
+	// Strip "🔍 Searching for: " prefix
+	if strings.HasPrefix(content, "🔍 Searching for: ") {
+		return strings.TrimPrefix(content, "🔍 Searching for: ")
+	}
+	// Strip "🔍+ Enhanced search: " prefix
+	if strings.HasPrefix(content, "🔍+ Enhanced search: ") {
+		return strings.TrimPrefix(content, "🔍+ Enhanced search: ")
+	}
+	return content
 }

@@ -91,7 +91,26 @@ system_prompts:
 
 - `/query`: Search for information
 - `/query +domain.com`: Search with specific domain
+- `/o`: Toggle enhanced search mode
+- `/o query`: One-time enhanced search
 - `esc`: Exit search mode
+
+#### Enhanced Search
+The enhanced search mode (🔍+) uses AI to optimize your search queries for better results. When enabled:
+- Queries are automatically enhanced with relevant context
+- Location and time information are considered
+- Ambiguous terms are clarified
+- Results are more targeted and comprehensive
+- Queries are optimized while staying under character limits
+
+Examples:
+- Basic: `/what's the weather like?`
+- Enhanced: `/o what's the weather like?` 
+  - Gets transformed into a more specific query including location and time context
+- Domain-specific: `/o python tutorials +python.org`
+  - Enhanced query limited to python.org domain
+
+The status bar shows 🔍+ when enhanced mode is active. You can toggle it with `/o` or use it for a single search with `/o query`.
 
 ### Conversation List
 

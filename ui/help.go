@@ -42,7 +42,11 @@ func NewHelpView() *HelpView {
 ## Search Mode
 * **/query**: Search for information
 * **/query +domain.com**: Search with specific domain
+* **/o**: Toggle enhanced search mode (🔍+)
+* **/o query**: One-time enhanced search
 * **esc**: Exit search mode
+
+Enhanced search mode uses AI to optimize your search queries for better results. It adds context, clarity, and relevant details while maintaining a concise format. The status bar shows 🔍+ when enhanced mode is active.
 
 ## Conversation List
 * **tab**: Switch focus between list and messages

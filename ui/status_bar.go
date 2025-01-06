@@ -34,6 +34,7 @@ type StatusBar struct {
 	temporaryTimer    *time.Timer
 	errorMessage      string
 	errorTimer        *time.Timer
+	isEnhancedSearch bool
 }
 
 // NewStatusBar creates a new status bar
@@ -122,7 +123,11 @@ func (s *StatusBar) View() string {
 			rightContent = s.spinner.View() + " Thinking..."
 		}
 	} else if s.isSearchMode {
-		rightContent = "🔍"
+		searchIndicator := "🔍"
+		if s.isEnhancedSearch {
+			searchIndicator = "🔍+"
+		}
+		rightContent = searchIndicator
 	}
 
 	leftSection := lipgloss.JoinHorizontal(
@@ -174,4 +179,8 @@ func (s *StatusBar) SetError(text string) {
 		<-s.errorTimer.C
 		s.errorMessage = ""
 	}()
+}
+
+func (s *StatusBar) SetEnhancedSearch(enabled bool) {
+	s.isEnhancedSearch = enabled
 } 
