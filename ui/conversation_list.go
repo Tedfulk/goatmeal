@@ -1,6 +1,13 @@
 package ui
 
 import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"strings"
+	"time"
+	"unicode"
+
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -31,6 +38,7 @@ type KeyMap struct {
 	Back key.Binding
 	Delete key.Binding
 	SwitchFocus key.Binding
+	Export key.Binding
 }
 
 var DefaultKeyMap = KeyMap{
@@ -45,6 +53,10 @@ var DefaultKeyMap = KeyMap{
 	SwitchFocus: key.NewBinding(
 		key.WithKeys("tab"),
 		key.WithHelp("tab", "switch focus"),
+	),
+	Export: key.NewBinding(
+		key.WithKeys("e"),
+		key.WithHelp("e", "export conversation"),
 	),
 }
 
@@ -76,6 +88,7 @@ func NewConversationListView(db *database.DB, cfg *config.Config) *ConversationL
 			DefaultKeyMap.Back,
 			DefaultKeyMap.Delete,
 			DefaultKeyMap.SwitchFocus,
+			DefaultKeyMap.Export,
 		}
 	}
 	l.AdditionalFullHelpKeys = l.AdditionalShortHelpKeys
@@ -196,6 +209,86 @@ func (c *ConversationListView) loadMessages(conversationID string) {
 	c.viewport.SetContent(content)
 }
 
+func (c *ConversationListView) exportConversation(id string) error {
+	// Get user's home directory
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("error getting home directory: %w", err)
+	}
+
+	// Get the conversation data
+	conv, err := c.db.ExportConversation(id)
+	if err != nil {
+		return fmt.Errorf("error exporting conversation: %w", err)
+	}
+
+	// Create the export data structure
+	exportData := struct {
+		ID        string    `json:"id"`
+		Title     string    `json:"title"`
+		Provider  string    `json:"provider"`
+		Model     string    `json:"model"`
+		CreatedAt time.Time `json:"created_at"`
+		UpdatedAt time.Time `json:"updated_at"`
+		Messages  []struct {
+			Role      string    `json:"role"`
+			Content   string    `json:"content"`
+			Timestamp time.Time `json:"timestamp"`
+		} `json:"messages"`
+	}{
+		ID:        conv.ID,
+		Title:     conv.Title,
+		Provider:  conv.Provider,
+		Model:     conv.Model,
+		CreatedAt: conv.CreatedAt,
+		UpdatedAt: conv.UpdatedAt,
+		Messages:  make([]struct {
+			Role      string    `json:"role"`
+			Content   string    `json:"content"`
+			Timestamp time.Time `json:"timestamp"`
+		}, len(conv.Messages)),
+	}
+
+	// Convert messages
+	for i, msg := range conv.Messages {
+		exportData.Messages[i] = struct {
+			Role      string    `json:"role"`
+			Content   string    `json:"content"`
+			Timestamp time.Time `json:"timestamp"`
+		}{
+			Role:      msg.Role,
+			Content:   msg.Content,
+			Timestamp: msg.CreatedAt,
+		}
+	}
+
+	// Create JSON data
+	jsonData, err := json.MarshalIndent(exportData, "", "    ")
+	if err != nil {
+		return fmt.Errorf("error marshaling JSON: %w", err)
+	}
+
+	// Create filename using conversation title (sanitized) and timestamp
+	sanitizedTitle := strings.Map(func(r rune) rune {
+		if unicode.IsLetter(r) || unicode.IsNumber(r) || r == '-' || r == '_' {
+			return r
+		}
+		return '-'
+	}, conv.Title)
+	
+	filename := fmt.Sprintf("%s/Downloads/conversation-%s-%s.json",
+		homeDir,
+		sanitizedTitle,
+		time.Now().Format("2006-01-02-150405"))
+
+	// Write the file
+	if err := os.WriteFile(filename, jsonData, 0644); err != nil {
+		return fmt.Errorf("error writing file: %w", err)
+	}
+
+	return nil
+}
+
 func (c *ConversationListView) Update(msg tea.Msg) (*ConversationListView, tea.Cmd) {
 	var cmds []tea.Cmd
 
@@ -238,6 +331,17 @@ func (c *ConversationListView) Update(msg tea.Msg) (*ConversationListView, tea.C
 					c.viewport.SetContent("Select a conversation to view messages")
 				}
 			}
+		}
+
+		if key.Matches(msg, c.keys.Export) {
+			if len(c.list.Items()) > 0 {
+				selected := c.list.SelectedItem().(ConversationItem)
+				if err := c.exportConversation(selected.id); err != nil {
+					// Handle error (you might want to show this in the UI)
+					fmt.Printf("Error exporting conversation: %v\n", err)
+				}
+			}
+			return c, nil
 		}
 
 		// Only pass key events to the focused component

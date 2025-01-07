@@ -51,6 +51,7 @@ Enhanced search mode uses AI to optimize your search queries for better results.
 ## Conversation List
 * **tab**: Switch focus between list and messages
 * **d**: Delete selected conversation
+* **e**: Export conversation as JSON
 * **esc**: Return to chat
 
 ## Settings Menu

@@ -201,4 +201,34 @@ func (db *DB) DeleteConversation(conversationID string) error {
 	}
 
 	return tx.Commit()
+}
+
+// ExportConversation retrieves a complete conversation with all messages for export
+func (db *DB) ExportConversation(conversationID string) (*Conversation, error) {
+	// Get the conversation details
+	var conv Conversation
+	err := db.QueryRow(`
+		SELECT id, title, provider, model, created_at, updated_at
+		FROM conversations
+		WHERE id = ?
+	`, conversationID).Scan(
+		&conv.ID,
+		&conv.Title,
+		&conv.Provider,
+		&conv.Model,
+		&conv.CreatedAt,
+		&conv.UpdatedAt,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("error querying conversation: %w", err)
+	}
+
+	// Get all messages for the conversation
+	messages, err := db.GetConversationMessages(conversationID)
+	if err != nil {
+		return nil, fmt.Errorf("error querying messages: %w", err)
+	}
+	conv.Messages = messages
+
+	return &conv, nil
 } 

@@ -183,7 +183,7 @@ func (p *Provider) ListModels(ctx context.Context) ([]string, error) {
 			break
 		}
 		// Only include Gemini models
-		if model.Name != "" && model.Name != "models/gemini-pro-vision" {
+		if model.Name != "" && model.Name != "models/gemini-2.0-flash-exp" {
 			models = append(models, model.Name)
 		}
 	}
@@ -191,8 +191,7 @@ func (p *Provider) ListModels(ctx context.Context) ([]string, error) {
 	if len(models) == 0 {
 		// Fallback to known models if list fails
 		return []string{
-			"gemini-pro",
-			"gemini-pro-vision",
+			"gemini-2.0-flash-exp",
 		}, nil
 	}
 

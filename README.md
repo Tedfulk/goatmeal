@@ -119,6 +119,7 @@ The status bar shows 🔍+ when enhanced mode is active. You can toggle it with 
 
 - `tab`: Switch focus between list and messages
 - `d`: Delete selected conversation
+- `e`: Export conversation as JSON (saves to ~/Downloads)
 - `esc`: Return to chat
 
 ### Project Structure
