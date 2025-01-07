@@ -10,6 +10,7 @@ import (
 	"github.com/tedfulk/goatmeal/config"
 	"github.com/tedfulk/goatmeal/database"
 	"github.com/tedfulk/goatmeal/ui/theme"
+	"github.com/tedfulk/goatmeal/utils/models"
 )
 
 type ShowMenuMsg struct{}
@@ -172,11 +173,11 @@ func (c *ConversationListView) loadMessages(conversationID string) {
 				if currentConv.Provider == "tavily" {
 					modelName = "Tavily"
 				} else {
-					modelName = currentConv.Model
+					modelName = models.StripModelsPrefix(currentConv.Model)
 				}
 				prefix = lipgloss.NewStyle().
 					Foreground(theme.CurrentTheme.Message.AIText.GetColor()).
-					Render(modelName)
+						Render(modelName)
 			}
 
 			// Render message content with Glamour if enabled
@@ -201,11 +202,12 @@ func (c *ConversationListView) Update(msg tea.Msg) (*ConversationListView, tea.C
 	switch msg := msg.(type) {
 	case tea.MouseMsg:
 		if c.focused == "messages" {
-			switch msg.Type {
-			case tea.MouseWheelUp:
-				c.viewport.LineUp(1)
-			case tea.MouseWheelDown:
-				c.viewport.LineDown(1)
+			if msg.Action == tea.MouseActionPress {
+				if msg.Button == tea.MouseButtonWheelUp {
+					c.viewport.LineUp(1)
+				} else if msg.Button == tea.MouseButtonWheelDown {
+					c.viewport.LineDown(1)
+				}
 			}
 		}
 
@@ -222,14 +224,9 @@ func (c *ConversationListView) Update(msg tea.Msg) (*ConversationListView, tea.C
 
 		// Handle our key bindings first
 		if key.Matches(msg, c.keys.Back) {
-			return c, tea.Batch(
-				func() tea.Msg {
-					return SetViewMsg{view: "chat"}
-				},
-				func() tea.Msg {
-					return tea.ClearScreen()
-				},
-			)
+			return c, func() tea.Msg {
+				return SetViewMsg{view: "chat"}
+			}
 		}
 
 		if key.Matches(msg, c.keys.Delete) {

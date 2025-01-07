@@ -102,26 +102,37 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	)
 
 	switch msg := msg.(type) {
+	case ModelChangeMsg:
+		// Update the config
+		a.config.CurrentProvider = msg.Provider
+		a.config.CurrentModel = msg.Model
+		
+		// Update the status bar
+		a.statusBar.UpdateProviderAndModel(msg.Provider, msg.Model)
+		
+		// Return to settings view
+		a.currentView = "settings"
+		return a, nil
+
 	case ThemeChangeMsg:
 		a.conversationWindow.Style = lipgloss.NewStyle().
 			BorderStyle(lipgloss.RoundedBorder()).
-			BorderForeground(theme.CurrentTheme.Primary.GetColor()).
-			Align(lipgloss.Left)
+				BorderForeground(theme.CurrentTheme.Primary.GetColor()).
+				Align(lipgloss.Left)
 		a.statusBar.UpdateStyle()
 		a.menu.list.Styles.Title = theme.BaseStyle.Title.
-			Foreground(theme.CurrentTheme.Primary.GetColor())
+				Foreground(theme.CurrentTheme.Primary.GetColor())
 		a.settingsMenu.list.Styles.Title = theme.BaseStyle.Title.
-			Foreground(theme.CurrentTheme.Primary.GetColor())
+				Foreground(theme.CurrentTheme.Primary.GetColor())
 		a.glamourMenu.list.Styles.Title = theme.BaseStyle.Title.
-			Foreground(theme.CurrentTheme.Primary.GetColor())
+				Foreground(theme.CurrentTheme.Primary.GetColor())
 		a.systemPromptSettings.list.Styles.Title = theme.BaseStyle.Title.
-			Foreground(theme.CurrentTheme.Primary.GetColor())
+				Foreground(theme.CurrentTheme.Primary.GetColor())
 		return a, nil
 	case SetViewMsg:
 		a.currentView = msg.view
 		if msg.view == "chat" {
 			a.showMenu = true
-			a.conversationWindow.SetContent("")
 		} else if msg.view == "conversations" {
 			a.refreshConversationList()
 		}
@@ -162,12 +173,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if a.currentView == "conversations" {
 				// Let the conversation list handle its own escape key
 				break
-			} else if a.currentView == "glamour" || a.currentView == "username" || a.currentView == "apikeys" || a.currentView == "systemprompts" || a.currentView == "theme" {
-				// Let the systemprompts view handle its own escape key for nested views
-				if a.currentView == "systemprompts" {
-					break
-				}
-				a.currentView = "settings"
+			} else if a.currentView == "glamour" || a.currentView == "username" || a.currentView == "apikeys" || a.currentView == "systemprompts" || a.currentView == "theme" || a.currentView == "model" {
+				// Let these views handle their own escape key
+				break
 			} else if a.currentView == "settings" {
 				a.currentView = "chat"
 			} else if a.showMenu {
@@ -419,12 +427,13 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if input != "" {
 				userInput := input
 				
+				// Create and store user message
 				userMsg := NewMessage(a.nextMessageID, UserMessage, userInput, a.config, a.getNextCodeBlockNumber)
 				a.messages = append(a.messages, userMsg)
 				a.nextMessageID++
 
+				// Update view and reset input immediately
 				a.updateConversationView()
-				
 				a.input.Reset()
 
 				// If this is the first message, generate a title and create conversation in DB
@@ -439,7 +448,6 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// Send message to provider
 				go func() {
 					defer func() {
-						// Stop spinner when done
 						a.statusBar.SetLoading(false)
 					}()
 
@@ -455,19 +463,20 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					} else {
 						// Build conversation history
 						var conversationHistory []string
-						for _, msg := range a.messages {
+						for _, msg := range a.messages[:len(a.messages)-1] { // Exclude the message we just added
 							if msg.Type == UserMessage {
 								conversationHistory = append(conversationHistory, "User: "+msg.Content)
 							} else if msg.Type == ProviderMessage {
 								conversationHistory = append(conversationHistory, "Assistant: "+msg.Content)
 							}
+							// Skip SearchMessage type when building conversation history
 						}
 						
-						// Join history with newlines
-						history := strings.Join(conversationHistory, "\n")
-						
 						// Add current message
-						fullPrompt := history + "\nUser: " + userInput
+						conversationHistory = append(conversationHistory, "User: "+userInput)
+						
+						// Join history with newlines
+						fullPrompt := strings.Join(conversationHistory, "\n")
 
 						switch providerName {
 						case "anthropic":
@@ -500,7 +509,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					// Save to database if we have a current conversation
 					if a.currentConversationID != "" {
 						if len(a.messages) == 2 { // First user message + first AI response
-							// Save the entire conversation for the first exchange
+							// Save the entire conversation
 							conv := &database.Conversation{
 								ID:        a.currentConversationID,
 								Title:     a.statusBar.conversationTitle,
@@ -508,52 +517,60 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 								Model:     a.config.CurrentModel,
 								CreatedAt: time.Now(),
 								UpdatedAt: time.Now(),
-								Messages:  make([]database.Message, len(a.messages)),
+								Messages:  make([]database.Message, 2), // Only save the current exchange
 							}
 
-							// Convert UI messages to database messages
-							for i, msg := range a.messages {
+							// Convert only the current exchange messages
+							for i := 0; i < 2; i++ {
+								msg := a.messages[i]
 								role := "user"
-								if msg.Type == SearchMessage {
-									role = "search"
-								} else if msg.Type == ProviderMessage {
+								if msg.Type == ProviderMessage {
 									role = "assistant"
+								} else if msg.Type == SearchMessage {
+									role = "search"
 								}
 								conv.Messages[i] = database.Message{
-										ID:             uuid.New().String(),
-										ConversationID: conv.ID,
-										Role:           role,
-										Content:        msg.Content,
-										CreatedAt:     msg.Timestamp,
-									}
+									ID:             uuid.New().String(),
+									ConversationID: conv.ID,
+									Role:           role,
+									Content:        msg.Content,
+									CreatedAt:      msg.Timestamp,
+								}
 							}
 
 							if err := a.db.SaveConversation(conv); err != nil {
 								fmt.Printf("Error saving conversation: %v\n", err)
 							}
-
 							a.refreshConversationList()
-						} else if len(a.messages) > 2 {
-							lastMsg := a.messages[len(a.messages)-1]
-							role := "user"
-							if lastMsg.Type == ProviderMessage {
-								role = "assistant"
+						} else {
+							// Add just the last two messages (current exchange)
+							lastMsgIndex := len(a.messages) - 1
+							messages := []database.Message{
+								{
+									ID:             uuid.New().String(),
+									ConversationID: a.currentConversationID,
+									Role:           "user",
+									Content:        a.messages[lastMsgIndex-1].Content,
+									CreatedAt:      a.messages[lastMsgIndex-1].Timestamp,
+								},
+								{
+									ID:             uuid.New().String(),
+									ConversationID: a.currentConversationID,
+									Role:           "assistant",
+									Content:        a.messages[lastMsgIndex].Content,
+									CreatedAt:      a.messages[lastMsgIndex].Timestamp,
+								},
 							}
-							dbMsg := &database.Message{
-								ID:             uuid.New().String(),
-								ConversationID: a.currentConversationID,
-								Role:           role,
-								Content:        lastMsg.Content,
-								CreatedAt:      lastMsg.Timestamp,
-							}
-							if err := a.db.AddMessage(dbMsg); err != nil {
-								fmt.Printf("Error adding message: %v\n", err)
+							
+							for _, dbMsg := range messages {
+								if err := a.db.AddMessage(&dbMsg); err != nil {
+									fmt.Printf("Error adding message: %v\n", err)
+								}
 							}
 						}
 					}
 				}()
 				
-				// Return spinner tick command
 				return a, a.statusBar.spinner.Tick
 			}
 		}
@@ -651,7 +668,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.menu.SetSize(msg.Width, msg.Height)
 
 	case tea.MouseMsg:
-		if msg.Type == tea.MouseLeft {
+		if msg.Type == tea.MouseRelease && msg.Button == tea.MouseButtonLeft {
 			// Check if click is in status bar
 			if a.statusBar.inBounds(msg.X, msg.Y) {
 				// Start new conversation
@@ -711,6 +728,10 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var themeCmd tea.Cmd
 		a.settingsMenu.themeSettings, themeCmd = a.settingsMenu.themeSettings.Update(msg)
 		cmds = append(cmds, themeCmd)
+	} else if a.currentView == "model" {
+		var modelCmd tea.Cmd
+		a.settingsMenu.modelSettings, modelCmd = a.settingsMenu.modelSettings.Update(msg)
+		cmds = append(cmds, modelCmd)
 	} else if a.currentView == "help" {
 		var helpCmd tea.Cmd
 		a.helpView, helpCmd = a.helpView.Update(msg)
@@ -771,7 +792,7 @@ func (a *App) View() string {
 
 	switch a.currentView {
 	case "settings":
-		return a.settingsView()
+		return a.settingsMenu.View()
 	case "conversations":
 		return a.conversationList.View()
 	case "glamour":
@@ -784,6 +805,8 @@ func (a *App) View() string {
 		return a.systemPromptSettings.View()
 	case "theme":
 		return a.settingsMenu.themeSettings.View()
+	case "model":
+		return a.settingsMenu.modelSettings.View()
 	case "help":
 		return a.helpView.View()
 	default:

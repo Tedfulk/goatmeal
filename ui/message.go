@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/tedfulk/goatmeal/config"
 	"github.com/tedfulk/goatmeal/ui/theme"
+	"github.com/tedfulk/goatmeal/utils/models"
 )
 
 // MessageType represents the type of message (user or provider)
@@ -81,7 +82,7 @@ func (m Message) View(width int) string {
 	} else if m.Type == SearchMessage {
 		prefix = "Tavily"
 	} else {
-		prefix = m.Config.CurrentModel
+		prefix = models.StripModelsPrefix(m.Config.CurrentModel)
 	}
 	
 	timestampStyle := lipgloss.NewStyle().

@@ -39,6 +39,11 @@ type DeleteSystemPromptsView struct {
 }
 
 func NewDeleteSystemPromptsView(cfg *config.Config) *DeleteSystemPromptsView {
+	// Reload the config to get any newly added prompts
+	if newConfig, err := config.Load(); err == nil {
+		cfg = newConfig
+	}
+
 	// Create list items from system prompts
 	var items []list.Item
 	for _, prompt := range cfg.SystemPrompts {
@@ -180,11 +185,9 @@ func (d *DeleteSystemPromptsView) View() string {
 		vpStyle = vpStyle.BorderForeground(theme.CurrentTheme.Border.Active.GetColor())
 	}
 
-	// Apply the styles
 	listView := listStyle.Render(d.list.View())
 	viewportView := vpStyle.Render(d.viewport.View())
 
-	// Join the containers horizontally with a gap
 	return lipgloss.JoinHorizontal(
 		lipgloss.Top,
 		listView,
@@ -196,12 +199,10 @@ func (d *DeleteSystemPromptsView) SetSize(width, height int) {
 	d.width = width
 	d.height = height
 
-	// Set list size (account for borders and padding)
-	listHeight := height - 4 // Account for borders and padding
+	listHeight := height - 4
 	d.list.SetSize(30, listHeight)
 
-	// Set viewport size (account for borders and padding)
-	viewportWidth := width - 38 // Account for list width (34) and gap (4)
-	d.viewport.Width = viewportWidth - 4 // Account for borders and padding
-	d.viewport.Height = height - 4 // Account for borders and padding
+	viewportWidth := width - 38
+	d.viewport.Width = viewportWidth - 4
+	d.viewport.Height = height - 4
 } 

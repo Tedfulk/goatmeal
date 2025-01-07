@@ -47,12 +47,12 @@ Configuration is stored in `~/.config/goatmeal/config.yaml`:
 
 ```yaml
 api_keys:
-  openai: "your-api-key"
-  anthropic: "your-api-key"
-  gemini: "your-api-key"
-  deepseek: "your-api-key"
-  groq: "your-api-key"
-  tavily: "your-api-key"
+  openai: your-api-key
+  anthropic: your-api-key
+  gemini: your-api-key
+  deepseek: your-api-key
+  groq: your-api-key
+  tavily: your-api-key
 current_model: llama-3.3-70b-versatile
 current_provider: groq
 current_system_prompt: You are a helpful AI assistant.
@@ -96,7 +96,9 @@ system_prompts:
 - `esc`: Exit search mode
 
 #### Enhanced Search
+
 The enhanced search mode (🔍+) uses AI to optimize your search queries for better results. When enabled:
+
 - Queries are automatically enhanced with relevant context
 - Location and time information are considered
 - Ambiguous terms are clarified
@@ -104,8 +106,9 @@ The enhanced search mode (🔍+) uses AI to optimize your search queries for bet
 - Queries are optimized while staying under character limits
 
 Examples:
+
 - Basic: `/what's the weather like?`
-- Enhanced: `/o what's the weather like?` 
+- Enhanced: `/o what's the weather like?`
   - Gets transformed into a more specific query including location and time context
 - Domain-specific: `/o python tutorials +python.org`
   - Enhanced query limited to python.org domain
@@ -128,14 +131,10 @@ goatmeal/
  ├── scripts
  ├── services
  │   ├── providers
- │   │   ├── anthropic
- │   │   ├── deepseek
- │   │   ├── gemini
- │   │   ├── groq
- │   │   ├── openai
- │   │   ├── openai_compatible.go
- │   │   └── provider.go
  │   ├── web
- │   │   └── tavily
- └── ui
+ ├── ui
+ │   ├── setup
+ │   ├── theme
+ │   ├── // the rest of the views and logic
+ └── utils
 ```

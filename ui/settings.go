@@ -25,15 +25,17 @@ type SettingsMenu struct {
 	currentView    string
 	config         *config.Config
 	themeSettings  ThemeSettings
+	modelSettings  ModelSettings
 }
 
 func NewSettingsMenu(cfg *config.Config) SettingsMenu {
 	items := []list.Item{
 		SettingsMenuItem{title: "API Keys", description: "Configure API keys for providers"},
 		SettingsMenuItem{title: "System Prompts", description: "Manage system prompts"},
+		SettingsMenuItem{title: "Change Model", description: "Change provider and model"},
 		SettingsMenuItem{title: "Theme", description: "Change application theme"},
 		SettingsMenuItem{title: "Glamour", description: "Configure markdown formatting"},
-		SettingsMenuItem{title: "Username", description: "Change your username"},
+			SettingsMenuItem{title: "Username", description: "Change your username"},
 	}
 
 	l := list.New(items, list.NewDefaultDelegate(), 0, 0)
@@ -57,6 +59,7 @@ func NewSettingsMenu(cfg *config.Config) SettingsMenu {
 		currentView:   "settings",
 		config:        cfg,
 		themeSettings: NewThemeSettings(cfg),
+		modelSettings: NewModelSettings(cfg),
 	}
 }
 
@@ -68,6 +71,10 @@ func (s SettingsMenu) Update(msg tea.Msg) (SettingsMenu, tea.Cmd) {
 		var themeCmd tea.Cmd
 		s.themeSettings, themeCmd = s.themeSettings.Update(msg)
 		return s, themeCmd
+	case "model":
+		var modelCmd tea.Cmd
+		s.modelSettings, modelCmd = s.modelSettings.Update(msg)
+		return s, modelCmd
 	default:
 		switch msg := msg.(type) {
 		case tea.KeyMsg:
@@ -85,6 +92,8 @@ func (s SettingsMenu) Update(msg tea.Msg) (SettingsMenu, tea.Cmd) {
 					s.currentView = "glamour"
 				case "Username":
 					s.currentView = "username"
+				case "Change Model":
+					s.currentView = "model"
 				}
 				return s, nil
 			case "esc":
@@ -104,6 +113,8 @@ func (m SettingsMenu) View() string {
 	switch m.currentView {
 	case "theme":
 		return m.themeSettings.View()
+	case "model":
+		return m.modelSettings.View()
 	default:
 		menuStyle := theme.BaseStyle.Menu.
 			BorderForeground(theme.CurrentTheme.Primary.GetColor())
@@ -132,4 +143,5 @@ func (m *SettingsMenu) SetSize(width, height int) {
 	m.height = height
 	m.list.SetSize(width-4, height-12)
 	m.themeSettings.SetSize(width, height)
+	m.modelSettings.SetSize(width, height)
 } 

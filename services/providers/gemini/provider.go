@@ -44,7 +44,7 @@ func (p *Provider) SendMessage(ctx context.Context, message, systemPrompt, model
 	}
 
 	// Configure the model
-	m.SetTemperature(0.7)
+	m.SetTemperature(0.2)
 	m.SetTopK(40)
 	m.SetTopP(0.95)
 	m.SafetySettings = []*genai.SafetySetting{
@@ -107,7 +107,7 @@ func (p *Provider) SendMessageWithImage(ctx context.Context, message string, ima
 	}
 
 	// Configure the model
-	m.SetTemperature(0.7)
+	m.SetTemperature(0.2)
 	m.SetTopK(40)
 	m.SetTopP(0.95)
 	m.SafetySettings = []*genai.SafetySetting{

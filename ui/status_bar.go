@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/tedfulk/goatmeal/config"
 	"github.com/tedfulk/goatmeal/ui/theme"
+	"github.com/tedfulk/goatmeal/utils/models"
 )
 
 var (
@@ -134,7 +135,7 @@ func (s *StatusBar) View() string {
 		lipgloss.Left,
 		"➕💬",
 		" | ",
-		modelStyle.Render(s.config.CurrentProvider+"/"+s.config.CurrentModel),
+		modelStyle.Render(s.config.CurrentProvider+"/"+models.StripModelsPrefix(s.config.CurrentModel)),
 	)
 
 	// Calculate the right section width to ensure proper alignment
@@ -183,4 +184,10 @@ func (s *StatusBar) SetError(text string) {
 
 func (s *StatusBar) SetEnhancedSearch(enabled bool) {
 	s.isEnhancedSearch = enabled
+}
+
+func (s *StatusBar) UpdateProviderAndModel(provider, model string) {
+	s.config.CurrentProvider = provider
+	s.config.CurrentModel = model
+	s.UpdateStyle()
 } 
