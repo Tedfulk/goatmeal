@@ -1,19 +1,13 @@
 package ui
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/tedfulk/goatmeal/config"
-	"github.com/tedfulk/goatmeal/services/providers"
-	"github.com/tedfulk/goatmeal/services/providers/anthropic"
-	"github.com/tedfulk/goatmeal/services/providers/deepseek"
-	"github.com/tedfulk/goatmeal/services/providers/gemini"
-	"github.com/tedfulk/goatmeal/services/providers/groq"
-	"github.com/tedfulk/goatmeal/services/providers/openai"
+	"github.com/tedfulk/goatmeal/services/providers/model_selection"
 	"github.com/tedfulk/goatmeal/ui/theme"
 )
 
@@ -120,23 +114,7 @@ type fetchModelsMsg struct {
 // Add a command to fetch models
 func fetchModels(provider, apiKey string) tea.Cmd {
 	return func() tea.Msg {
-		var p providers.Provider
-		switch provider {
-		case "openai":
-			p = openai.NewProvider(apiKey)
-		case "groq":
-			p = groq.NewProvider(apiKey)
-		case "deepseek":
-			p = deepseek.NewProvider(apiKey)
-		case "anthropic":
-			p = anthropic.NewProvider(apiKey)
-		case "gemini":
-			p = gemini.NewProvider(apiKey)
-		default:
-			return fetchModelsMsg{err: fmt.Errorf("unsupported provider: %s", provider)}
-		}
-
-		models, err := p.ListModels(context.Background())
+		models, err := model_selection.FetchModels(provider, apiKey)
 		if err != nil {
 			return fetchModelsMsg{err: fmt.Errorf("error fetching models: %w", err)}
 		}

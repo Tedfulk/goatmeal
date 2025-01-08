@@ -1,4 +1,5 @@
-package tavily
+package search
+
 
 import (
 	"bytes"

@@ -3,8 +3,6 @@ package ui
 import (
 	"context"
 	"fmt"
-	"os"
-	"os/exec"
 	"strconv"
 	"strings"
 	"time"
@@ -20,9 +18,9 @@ import (
 	"github.com/tedfulk/goatmeal/services/providers"
 	"github.com/tedfulk/goatmeal/services/providers/anthropic"
 	"github.com/tedfulk/goatmeal/services/providers/gemini"
-	"github.com/tedfulk/goatmeal/services/web/tavily"
+	"github.com/tedfulk/goatmeal/services/search"
 	"github.com/tedfulk/goatmeal/ui/theme"
-	"github.com/tedfulk/goatmeal/utils/location"
+	"github.com/tedfulk/goatmeal/utils/editor"
 	"github.com/tedfulk/goatmeal/utils/prompts"
 )
 
@@ -57,6 +55,7 @@ type App struct {
 	helpView          *HelpView
 	totalCodeBlocks int
 	isEnhancedSearch bool
+	queryEnhancer *search.QueryEnhancer
 }
 
 func NewApp(cfg *config.Config, db *database.DB) *App {
@@ -88,6 +87,7 @@ func NewApp(cfg *config.Config, db *database.DB) *App {
 		conversationList: NewConversationListView(db, cfg),
 		helpView:          NewHelpView(),
 		totalCodeBlocks: 0,
+		queryEnhancer: search.NewQueryEnhancer(cfg.APIKeys["groq"]),
 	}
 }
 
@@ -202,7 +202,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						for _, m := range a.messages {
 							if m.ID == msgNum {
 								// Get message content and strip search prefixes if present
-								contentToCopy := stripSearchPrefix(m.Content)
+								contentToCopy := search.StripPrefix(m.Content)
 								
 								if err := clipboard.WriteAll(contentToCopy); err != nil {
 									a.statusBar.SetError(fmt.Sprintf("Failed to copy: %v", err))
@@ -336,7 +336,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 							a.statusBar.SetSearchMode(false)
 						}()
 						
-						tavilyClient := tavily.NewClient(a.config.APIKeys["tavily"])
+						tavilyClient := search.NewClient(a.config.APIKeys["tavily"])
 						searchResp, err := tavilyClient.Search(searchQuery, domains)
 						
 						var response string
@@ -855,50 +855,7 @@ func (a *App) generateTitle(userInput string) {
 
 // openMessageInEditor opens the message content in the default editor
 func (a *App) openMessageInEditor(m Message) {
-	// Create a temporary file with read/write permissions
-	tmpFile, err := os.CreateTemp("", "goatmeal-*.txt")
-	if err != nil {
-		return
-	}
-	tmpPath := tmpFile.Name()
-
-	// Write message content to file
-	if _, err := tmpFile.WriteString(m.Content); err != nil {
-		tmpFile.Close()
-		os.Remove(tmpPath)
-		return
-	}
-	tmpFile.Close()
-
-	// Get the default editor from environment variables
-	editor := os.Getenv("EDITOR")
-	if editor == "" {
-		editor = os.Getenv("VISUAL")
-	}
-	if editor == "" {
-		// Try common editors in order of preference
-		if _, err := exec.LookPath("nvim"); err == nil {
-			editor = "nvim"
-		} else if _, err := exec.LookPath("nano"); err == nil {
-			editor = "nano"
-		} else {
-			editor = "vim"
-		}
-	}
-
-	cmd := exec.Command(editor, tmpPath)
-	if editor != "cursor" {
-		cmd.Stdin = os.Stdin
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-	}
-
-	if err := cmd.Run(); err != nil {
-		os.Remove(tmpPath)
-		return
-	}
-
-	os.Remove(tmpPath)
+	editor.OpenInEditor(m.Content)
 }
 
 // In the App struct, add a method to refresh the conversation list
@@ -915,49 +872,5 @@ func (a *App) getNextCodeBlockNumber() int {
 
 // Add this method to the App struct
 func (a *App) enhanceSearchQuery(query string) (string, error) {
-	locationInfo := location.GetFormattedLocationAndTime()
-	
-	// First request to enhance the query
-	fullPrompt := prompts.GetEnhanceSearchPrompt(locationInfo, query)
-	
-	apiKey := a.config.APIKeys["groq"]
-	if apiKey == "" {
-		return query, fmt.Errorf("groq API key not found")
-	}
-	
-	cfg := providers.OpenAICompatibleConfig{
-		Name:    "groq",
-		APIKey:  apiKey,
-	}
-	provider := providers.NewOpenAICompatibleProvider(cfg)
-	
-	enhancedQuery, err := provider.SendMessage(context.Background(), fullPrompt, "", "llama-3.3-70b-versatile")
-	if err != nil {
-		return query, fmt.Errorf("failed to enhance query: %v", err)
-	}
-	
-	// Second request to clean up the enhanced query
-	extractPrompt := prompts.GetExtractQueryPrompt(enhancedQuery)
-	cleanQuery, err := provider.SendMessage(context.Background(), extractPrompt, "", "llama-3.3-70b-versatile")
-	if err != nil {
-		return query, fmt.Errorf("failed to clean enhanced query: %v", err)
-	}
-	
-	// Trim any extra whitespace or newlines
-	cleanQuery = strings.TrimSpace(cleanQuery)
-	
-	return cleanQuery, nil
-}
-
-// Add this helper function to strip search prefixes from messages
-func stripSearchPrefix(content string) string {
-	// Strip "🔍 Searching for: " prefix
-	if strings.HasPrefix(content, "🔍 Searching for: ") {
-		return strings.TrimPrefix(content, "🔍 Searching for: ")
-	}
-	// Strip "🔍+ Enhanced search: " prefix
-	if strings.HasPrefix(content, "🔍+ Enhanced search: ") {
-		return strings.TrimPrefix(content, "🔍+ Enhanced search: ")
-	}
-	return content
+	return a.queryEnhancer.Enhance(query)
 }
