@@ -73,6 +73,8 @@ type ConversationListView struct {
 	focused  string
 }
 
+type ResetTitleMsg struct{}
+
 func NewConversationListView(db *database.DB, cfg *config.Config) *ConversationListView {
 	l := list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0)
 	l.Title = "Conversations"
@@ -209,17 +211,25 @@ func (c *ConversationListView) loadMessages(conversationID string) {
 	c.viewport.SetContent(content)
 }
 
-func (c *ConversationListView) exportConversation(id string) error {
+func (c *ConversationListView) exportConversation(id string) (tea.Cmd, error) {
+	// Set the title immediately
+	c.list.Title = "Exporting"
+	
+	// Create a command to reset the title after 1 second
+	resetCmd := tea.Tick(time.Second, func(t time.Time) tea.Msg {
+		return ResetTitleMsg{}
+	})
+
 	// Get user's home directory
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return fmt.Errorf("error getting home directory: %w", err)
+		return nil, fmt.Errorf("error getting home directory: %w", err)
 	}
 
 	// Get the conversation data
 	conv, err := c.db.ExportConversation(id)
 	if err != nil {
-		return fmt.Errorf("error exporting conversation: %w", err)
+		return nil, fmt.Errorf("error exporting conversation: %w", err)
 	}
 
 	// Create the export data structure
@@ -265,7 +275,7 @@ func (c *ConversationListView) exportConversation(id string) error {
 	// Create JSON data
 	jsonData, err := json.MarshalIndent(exportData, "", "    ")
 	if err != nil {
-		return fmt.Errorf("error marshaling JSON: %w", err)
+		return nil, fmt.Errorf("error marshaling JSON: %w", err)
 	}
 
 	// Create filename using conversation title (sanitized) and timestamp
@@ -283,16 +293,20 @@ func (c *ConversationListView) exportConversation(id string) error {
 
 	// Write the file
 	if err := os.WriteFile(filename, jsonData, 0644); err != nil {
-		return fmt.Errorf("error writing file: %w", err)
+		return nil, fmt.Errorf("error writing file: %w", err)
 	}
 
-	return nil
+	return resetCmd, nil
 }
 
 func (c *ConversationListView) Update(msg tea.Msg) (*ConversationListView, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	switch msg := msg.(type) {
+	case ResetTitleMsg:
+		c.list.Title = "Conversations"
+		return c, nil
+
 	case tea.MouseMsg:
 		if c.focused == "messages" {
 			if msg.Action == tea.MouseActionPress {
@@ -336,9 +350,10 @@ func (c *ConversationListView) Update(msg tea.Msg) (*ConversationListView, tea.C
 		if key.Matches(msg, c.keys.Export) {
 			if len(c.list.Items()) > 0 {
 				selected := c.list.SelectedItem().(ConversationItem)
-				if err := c.exportConversation(selected.id); err != nil {
-					// Handle error (you might want to show this in the UI)
+				if cmd, err := c.exportConversation(selected.id); err != nil {
 					fmt.Printf("Error exporting conversation: %v\n", err)
+				} else {
+					return c, cmd
 				}
 			}
 			return c, nil
