@@ -133,7 +133,7 @@ func (s *StatusBar) View() string {
 
 	leftSection := lipgloss.JoinHorizontal(
 		lipgloss.Left,
-		"➕💬",
+		"+ New",
 		" | ",
 		modelStyle.Render(s.config.CurrentProvider+"/"+models.StripModelsPrefix(s.config.CurrentModel)),
 	)

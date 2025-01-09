@@ -37,6 +37,10 @@ type SwitchSystemPromptsView struct {
 	keys     SwitchSystemPromptsKeyMap
 }
 
+type SystemPromptChangeMsg struct {
+	NewPrompt string
+}
+
 func NewSwitchSystemPromptsView(cfg *config.Config) *SwitchSystemPromptsView {
 	// Reload the config to get any newly added prompts
 	if newConfig, err := config.Load(); err == nil {
@@ -110,11 +114,6 @@ func (s *SwitchSystemPromptsView) Update(msg tea.Msg) (*SwitchSystemPromptsView,
 
 		if msg.String() == "enter" && s.focused == "list" {
 			selected := s.list.SelectedItem().(SystemPromptMenuItem)
-			// Remove checkmark if present
-			title := selected.title
-			if len(title) > 2 && title[len(title)-2:] == " ✅" {
-				title = title[:len(title)-2]
-			}
 
 			// Update the current system prompt
 			manager, err := config.NewManager()
@@ -131,18 +130,20 @@ func (s *SwitchSystemPromptsView) Update(msg tea.Msg) (*SwitchSystemPromptsView,
 					}
 					items = append(items, SystemPromptMenuItem{
 						title:       itemTitle,
-							description: prompt.Content,
+						description: prompt.Content,
 					})
 				}
 				s.list.SetItems(items)
 			}
-			return nil, nil
+			return s, func() tea.Msg {
+				return SystemPromptChangeMsg{NewPrompt: selected.description}
+			}
 		}
 
 		if s.focused == "list" {
 			var listCmd tea.Cmd
 			s.list, listCmd = s.list.Update(msg)
-				cmds = append(cmds, listCmd)
+					cmds = append(cmds, listCmd)
 
 			if selected, ok := s.list.SelectedItem().(SystemPromptMenuItem); ok {
 				s.viewport.SetContent(selected.description)

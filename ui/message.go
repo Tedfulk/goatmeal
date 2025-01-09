@@ -13,7 +13,7 @@ import (
 	"github.com/tedfulk/goatmeal/utils/models"
 )
 
-// MessageType represents the type of message (user or provider)
+// MessageType represents the type of message (user, provider, search)
 type MessageType int
 
 const (

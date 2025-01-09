@@ -76,6 +76,11 @@ func (t ThemeSettings) Update(msg tea.Msg) (ThemeSettings, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
+		case "esc":
+			// Return to settings view instead of exiting
+			return t, func() tea.Msg {
+				return SetViewMsg{view: "settings"}
+			}
 		case "enter":
 			selected := t.list.SelectedItem().(ThemeMenuItem)
 			// Update the config

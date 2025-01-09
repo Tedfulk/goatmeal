@@ -89,10 +89,24 @@ func (s SystemPromptSettings) Update(msg tea.Msg) (SystemPromptSettings, tea.Cmd
 	if s.showSwitchView {
 		var switchCmd tea.Cmd
 		newSwitchView, switchCmd := s.switchView.Update(msg)
+		
 		if newSwitchView == nil {
 			s.showSwitchView = false
+			if switchCmd != nil {
+				if cmd := switchCmd(); cmd != nil {
+					if _, ok := cmd.(SystemPromptChangeMsg); ok {
+						return s, tea.Batch(
+							switchCmd,
+							func() tea.Msg {
+								return SetViewMsg{view: "settings"}
+							},
+						)
+					}
+				}
+			}
 			return s, nil
 		}
+		
 		s.switchView = newSwitchView
 		return s, switchCmd
 	}

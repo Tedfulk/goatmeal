@@ -663,12 +663,11 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.conversationList.SetSize(msg.Width, msg.Height)
 		a.helpView.SetSize(msg.Width, msg.Height)
 
-		// Re-render messages with new width
 		a.updateConversationView()
 		a.menu.SetSize(msg.Width, msg.Height)
 
 	case tea.MouseMsg:
-		if msg.Type == tea.MouseRelease && msg.Button == tea.MouseButtonLeft {
+		if msg.Action == tea.MouseActionRelease && msg.Button == tea.MouseButtonLeft {
 			// Check if click is in status bar
 			if a.statusBar.inBounds(msg.X, msg.Y) {
 				// Start new conversation
@@ -690,6 +689,17 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmd = a.statusBar.Update(msg)
 		}
 		return a, cmd
+
+	case SystemPromptChangeMsg:
+		// Update the app's config with the new system prompt
+		a.config.CurrentSystemPrompt = msg.NewPrompt
+		// Reload the config to ensure everything is in sync
+		if newConfig, err := config.Load(); err == nil {
+			a.config = newConfig
+			// Update any components that need the new config
+			a.statusBar.config = newConfig
+		}
+		return a, nil
 	}
 
 	// Update child components
