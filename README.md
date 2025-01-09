@@ -36,7 +36,7 @@ Goatmeal is a powerful terminal-based application that provides access to variou
 ## Installation
 
 ```bash
-go install github.com/tedfulk/goatmeal@v1.2.5
+go install github.com/tedfulk/goatmeal@v1.2.6
 ```
 
 ## Configuration
