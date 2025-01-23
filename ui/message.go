@@ -2,8 +2,11 @@ package ui
 
 import (
 	"fmt"
+	"os/exec"
 	"regexp"
+	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/charmbracelet/glamour"
@@ -31,6 +34,12 @@ type Message struct {
 	Config    *config.Config
 	codeBlocks []CodeBlock  // Store the code blocks when message is created
 }
+
+// Add these as package-level variables
+var (
+	currentSpeechCmd *exec.Cmd
+	speechMutex     sync.Mutex
+)
 
 // NewMessage creates a new message
 func NewMessage(id int, msgType MessageType, content string, cfg *config.Config, getNextBlockNum func() int) Message {
@@ -88,8 +97,9 @@ func (m Message) View(width int) string {
 	timestampStyle := lipgloss.NewStyle().
 		Foreground(theme.CurrentTheme.Message.Timestamp.GetColor())
 	
+	// Add speech indicator to timestamp
 	timestampStr := timestampStyle.Render(
-		fmt.Sprintf("%s • #m%d • %s", prefix, m.ID, m.Timestamp.Format("15:04")),
+		fmt.Sprintf("%s • #c%d • #s%d • %s", prefix, m.ID, m.ID, m.Timestamp.Format("15:04")),
 	)
 
 	baseStyle := theme.BaseStyle.Message
@@ -213,4 +223,43 @@ func (m *Message) processCodeBlocks(getNextBlockNum func() int) []CodeBlock {
 // Update ExtractCodeBlocks to use stored blocks
 func (m Message) ExtractCodeBlocks() []CodeBlock {
 	return m.codeBlocks
+}
+
+// Add this new function
+func StopSpeech() {
+	speechMutex.Lock()
+	defer speechMutex.Unlock()
+	
+	if currentSpeechCmd != nil && currentSpeechCmd.Process != nil {
+		currentSpeechCmd.Process.Kill()
+		currentSpeechCmd = nil
+	}
+}
+
+func (m Message) Speak() error {
+	// Stop any existing speech
+	StopSpeech()
+	
+	speechMutex.Lock()
+	
+	switch runtime.GOOS {
+	case "darwin": // macOS
+		currentSpeechCmd = exec.Command("say", "-r", "220", m.Content)
+	case "linux":
+		// espeak uses -s for speed (words per minute), 220 is approximately equivalent
+		currentSpeechCmd = exec.Command("espeak", "-s", "180", m.Content)
+	default:
+		speechMutex.Unlock()
+		return fmt.Errorf("text-to-speech not supported on %s", runtime.GOOS)
+	}
+	
+	speechMutex.Unlock()
+	
+	err := currentSpeechCmd.Run()
+	
+	speechMutex.Lock()
+	currentSpeechCmd = nil
+	speechMutex.Unlock()
+	
+	return err
 } 

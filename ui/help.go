@@ -36,8 +36,10 @@ func NewHelpView() *HelpView {
 * **/**:  Enter search mode
 * **enter**: Send message
 * **#o[n]**: Open message number 'n' in editor (e.g., #o1)
-* **#m[n]**: Copy message number 'n' to clipboard (e.g., #m1)
+* **#c[n]**: Copy message number 'n' to clipboard (e.g., #c1)
 * **#b[n]**: Copy code block number 'n' to clipboard (e.g., #b1)
+* **#s[n]**: Speak message number 'n' (e.g., #s1)
+* **ctrl+k**: Stop current speech playback
 
 ## Search Mode
 * **/query**: Search for information

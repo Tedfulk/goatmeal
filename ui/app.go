@@ -196,9 +196,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 							}
 						}
 					}
-				} else if strings.HasPrefix(input, "m") {
+				} else if strings.HasPrefix(input, "c") {
 					// Handle message copying to clipboard
-					if msgNum, err := strconv.Atoi(strings.TrimPrefix(input, "m")); err == nil {
+					if msgNum, err := strconv.Atoi(strings.TrimPrefix(input, "c")); err == nil {
 						for _, m := range a.messages {
 							if m.ID == msgNum {
 								// Get message content and strip search prefixes if present
@@ -240,6 +240,20 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 										break
 									}
 								}
+								break
+							}
+						}
+					}
+				} else if strings.HasPrefix(input, "s") {
+					// Handle message speaking
+					if msgNum, err := strconv.Atoi(strings.TrimPrefix(input, "s")); err == nil {
+						for _, m := range a.messages {
+							if m.ID == msgNum {
+								go func(msg Message) {
+									if err := msg.Speak(); err != nil {
+										a.statusBar.SetError(fmt.Sprintf("Failed to speak message: %v", err))
+									}
+								}(m)
 								break
 							}
 						}
@@ -573,6 +587,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				
 				return a, a.statusBar.spinner.Tick
 			}
+		case "ctrl+k":
+			StopSpeech()
+			return a, nil
 		}
 
 		// Handle menu toggle

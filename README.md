@@ -84,8 +84,10 @@ system_prompts:
 - `/`: Enter search mode
 - `enter`: Send message
 - `#o[n]`: Open message number 'n' in editor (e.g., #o1)
-- `#m[n]`: Copy message number 'n' to clipboard (e.g., #m1)
+- `#c[n]`: Copy message number 'n' to clipboard (e.g., #c1)
 - `#b[n]`: Copy code block number 'n' to clipboard (e.g., #b1)
+- `#s[n]`: Speak message number 'n' using system TTS (e.g., #s1)
+- `ctrl+k`: Stop current speech playback
 
 ### Search Mode
 
@@ -139,3 +141,24 @@ goatmeal/
  │   ├── // the rest of the views and logic
  └── utils
 ```
+
+## Dependencies
+
+### Linux
+
+For text-to-speech functionality on Linux, you'll need to install `espeak`:
+
+```bash
+# Ubuntu/Debian
+sudo apt-get install espeak
+
+# Fedora
+sudo dnf install espeak
+
+# Arch Linux
+sudo pacman -S espeak
+```
+
+### macOS
+
+Text-to-speech is supported out of the box using the built-in `say` command.
