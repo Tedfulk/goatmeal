@@ -17,7 +17,7 @@ func NewInput() Input {
 	ti := textinput.New()
 	ti.Placeholder = "Type your message..."
 	ti.Focus()
-	ti.Width = 130
+	ti.Width = 120
 	ti.Prompt = " > "
 
 	return Input{

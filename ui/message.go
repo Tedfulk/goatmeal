@@ -106,7 +106,7 @@ func (m Message) View(width int) string {
 
 	if m.Type == UserMessage {
 		// Calculate available width for content
-		contentWidth := width - 16
+		contentWidth := width - 14
 		
 		wrappedContent := wordWrap(m.Content, contentWidth)
 		
@@ -147,7 +147,7 @@ func (m Message) View(width int) string {
 			glamourStyle := "dark"
 			renderer, err := glamour.NewTermRenderer(
 				glamour.WithStylePath(glamourStyle),
-				glamour.WithWordWrap(120),
+				glamour.WithWordWrap(110),
 			)
 			if err == nil {
 				if rendered, err := renderer.Render(content); err == nil {

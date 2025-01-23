@@ -47,16 +47,16 @@ var DefaultKeyMap = KeyMap{
 		key.WithHelp("esc", "back to menu"),
 	),
 	Delete: key.NewBinding(
-		key.WithKeys("d"),
-		key.WithHelp("d", "delete conversation"),
+		key.WithKeys("ctrl+d"),
+		key.WithHelp("ctrl+d", "delete conversation"),
 	),
 	SwitchFocus: key.NewBinding(
 		key.WithKeys("tab"),
 		key.WithHelp("tab", "switch focus"),
 	),
 	Export: key.NewBinding(
-		key.WithKeys("e"),
-		key.WithHelp("e", "export conversation"),
+		key.WithKeys("ctrl+e"),
+		key.WithHelp("ctrl+e", "export conversation"),
 	),
 }
 

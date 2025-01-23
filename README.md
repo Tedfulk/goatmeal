@@ -81,38 +81,27 @@ system_prompts:
 ### Chat Interface
 
 - `?`: Toggle menu
-- `/`: Enter search mode
+- `#web query`: Search for information
+- `#web query +domain.com`: Search with specific domain
+- `#webe query`: Enhanced web search with AI optimization
+- `#webe query +domain.com`: Enhanced domain-specific search
 - `enter`: Send message
 - `#o[n]`: Open message number 'n' in editor (e.g., #o1)
 - `#c[n]`: Copy message number 'n' to clipboard (e.g., #c1)
 - `#b[n]`: Copy code block number 'n' to clipboard (e.g., #b1)
 - `#s[n]`: Speak message number 'n' using system TTS (e.g., #s1)
-- `ctrl+k`: Stop current speech playback
-
-### Search Mode
-
-- `/query`: Search for information
-- `/query +domain.com`: Search with specific domain
-- `/o`: Toggle enhanced search mode
-- `/o query`: One-time enhanced search
-- `esc`: Exit search mode
+- `ctrl+q`: Stop current speech playback
 
 #### Enhanced Search
 
-The enhanced search mode (🔍+) uses AI to optimize your search queries for better results. When enabled:
-
-- Queries are automatically enhanced with relevant context
-- Location and time information are considered
-- Ambiguous terms are clarified
-- Results are more targeted and comprehensive
-- Queries are optimized while staying under character limits
+The enhanced search mode (🔍+) uses AI to optimize your search queries for better results. When using `#webe`:
 
 Examples:
 
-- Basic: `/what's the weather like?`
-- Enhanced: `/o what's the weather like?`
+- Basic: `#web what's the latest news in the quantum computing?`
+- Enhanced: `#webe Recent breakthroughs in quantum computing 2024-2025 including, advancements in quantum processors algorithms and applications from reputable sources like research, journals and tech news.`
   - Gets transformed into a more specific query including location and time context
-- Domain-specific: `/o python tutorials +python.org`
+- Domain-specific: `#webe python tutorials +python.org`
   - Enhanced query limited to python.org domain
 
 The status bar shows 🔍+ when enhanced mode is active. You can toggle it with `/o` or use it for a single search with `/o query`.
@@ -120,8 +109,8 @@ The status bar shows 🔍+ when enhanced mode is active. You can toggle it with 
 ### Conversation List
 
 - `tab`: Switch focus between list and messages
-- `d`: Delete selected conversation
-- `e`: Export conversation as JSON (saves to ~/Downloads)
+- `ctrl+d`: Delete selected conversation
+- `ctrl+e`: Export conversation as JSON (saves to ~/Downloads)
 - `esc`: Return to chat
 
 ### Project Structure
@@ -162,3 +151,20 @@ sudo pacman -S espeak
 ### macOS
 
 Text-to-speech is supported out of the box using the built-in `say` command.
+
+### Text Selection in Terminal
+
+When using Goatmeal, there are two ways to select and copy text:
+
+1. **Using Option Key (Recommended)**:
+   - Hold the Option (⌥) key while selecting text
+   - This temporarily disables mouse reporting without affecting app functionality
+   - Release Option to restore normal mouse interaction
+
+2. **Toggle Mouse Reporting**:
+   - Press ⌘⇧M to temporarily disable mouse reporting
+   - Select text normally
+   - Press ⌘⇧M again to re-enable mouse reporting
+
+Note: Mouse reporting is required for proper UI interaction (scrolling, clicking, etc).
+Completely disabling it will impair application functionality.
