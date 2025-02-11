@@ -142,8 +142,9 @@ func (a APIKeySettings) Update(msg tea.Msg) (APIKeySettings, tea.Cmd) {
 			a.textInput.Focus()
 			return a, textinput.Blink
 		case tea.KeyEsc:
-			// Return to settings menu by setting currentView in App
-			return a, nil
+			return a, func() tea.Msg {
+				return SetViewMsg{view: "settings"}
+			}
 		}
 	}
 

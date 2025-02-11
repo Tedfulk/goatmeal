@@ -79,7 +79,7 @@ func NewConversationListView(db *database.DB, cfg *config.Config) *ConversationL
 	l := list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0)
 	l.Title = "Conversations"
 	l.SetShowHelp(true)
-	l.SetFilteringEnabled(true)
+	l.SetFilteringEnabled(false)
 	l.Styles.Title = theme.BaseStyle.Title.
 		Foreground(theme.CurrentTheme.Primary.GetColor()).
 		Align(lipgloss.Center).
