@@ -2,6 +2,8 @@
 
 Goatmeal is a powerful terminal-based application that provides access to various AI chat providers and web search capabilities, all within your terminal.
 
+https://github.com/user-attachments/assets/01bf6cda-39a6-4b41-97c1-fb7321bcd291
+
 ## Features
 
 - **Multiple AI Providers Support**
