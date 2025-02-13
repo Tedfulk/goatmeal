@@ -99,7 +99,7 @@ func (m Message) View(width int) string {
 	
 	// Add speech indicator to timestamp
 	timestampStr := timestampStyle.Render(
-		fmt.Sprintf("%s • #c%d • #s%d • %s", prefix, m.ID, m.ID, m.Timestamp.Format("15:04")),
+		fmt.Sprintf("%s • /c%d • /s%d • %s", prefix, m.ID, m.ID, m.Timestamp.Format("15:04")),
 	)
 
 	baseStyle := theme.BaseStyle.Message

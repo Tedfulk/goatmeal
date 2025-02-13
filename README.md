@@ -83,30 +83,28 @@ system_prompts:
 ### Chat Interface
 
 - `?`: Toggle menu
-- `#web query`: Search for information
-- `#web query +domain.com`: Search with specific domain
-- `#webe query`: Enhanced web search with AI optimization
-- `#webe query +domain.com`: Enhanced domain-specific search
+- `/web query`: Search for information
+- `/web query +domain.com`: Search with specific domain
+- `/webe query`: Enhanced web search with AI optimization
+- `/webe query +domain.com`: Enhanced domain-specific search
 - `enter`: Send message
-- `#o[n]`: Open message number 'n' in editor (e.g., #o1)
-- `#c[n]`: Copy message number 'n' to clipboard (e.g., #c1)
-- `#b[n]`: Copy code block number 'n' to clipboard (e.g., #b1)
-- `#s[n]`: Speak message number 'n' using system TTS (e.g., #s1)
+- `/o[n]`: Open message number 'n' in editor (e.g., /o1)
+- `/c[n]`: Copy message number 'n' to clipboard (e.g., /c1)
+- `/b[n]`: Copy code block number 'n' to clipboard (e.g., /b1)
+- `/s[n]`: Speak message number 'n' using system TTS (e.g., /s1)
 - `ctrl+q`: Stop current speech playback
 
 #### Enhanced Search
 
-The enhanced search mode (🔍+) uses AI to optimize your search queries for better results. When using `#webe`:
+The enhanced search mode (🔍+) uses AI to optimize your search queries for better results. When using `/webe`:
 
 Examples:
 
-- Basic: `#web what's the latest news in the quantum computing?`
-- Enhanced: `#webe Recent breakthroughs in quantum computing 2024-2025 including, advancements in quantum processors algorithms and applications from reputable sources like research, journals and tech news.`
+- Basic: `/web what's the latest news in the quantum computing?`
+- Enhanced: `/webe what's the latest news in the quantum computing?` gets transformed into something like `Recent breakthroughs in quantum computing 2024-2025 including, advancements in quantum processors algorithms and applications from reputable sources like research, journals and tech news.`
   - Gets transformed into a more specific query including location and time context
-- Domain-specific: `#webe python tutorials +python.org`
+- Domain-specific: `/webe python tutorials +python.org`
   - Enhanced query limited to python.org domain
-
-The status bar shows 🔍+ when enhanced mode is active. You can toggle it with `/o` or use it for a single search with `/o query`.
 
 ### Conversation List
 
@@ -114,24 +112,6 @@ The status bar shows 🔍+ when enhanced mode is active. You can toggle it with 
 - `ctrl+d`: Delete selected conversation
 - `ctrl+e`: Export conversation as JSON (saves to ~/Downloads)
 - `esc`: Return to chat
-
-### Project Structure
-
-```md
-goatmeal/
- ├── config
- ├── database
- ├── main.go
- ├── scripts
- ├── services
- │   ├── providers
- │   ├── web
- ├── ui
- │   ├── setup
- │   ├── theme
- │   ├── // the rest of the views and logic
- └── utils
-```
 
 ## Dependencies
 

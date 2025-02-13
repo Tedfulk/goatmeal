@@ -34,17 +34,17 @@ func NewHelpView() *HelpView {
 ## Chat Interface
 * **?**: Toggle menu
 * **enter**: Send message
-* **#o[n]**: Open message number 'n' in editor (e.g., #o1)
-* **#c[n]**: Copy message number 'n' to clipboard (e.g., #c1)
-* **#b[n]**: Copy code block number 'n' to clipboard (e.g., #b1)
-* **#s[n]**: Speak message number 'n' (e.g., #s1)
+* **/o[n]**: Open message number 'n' in editor (e.g., /o1)
+* **/c[n]**: Copy message number 'n' to clipboard (e.g., /c1)
+* **/b[n]**: Copy code block number 'n' to clipboard (e.g., /b1)
+* **/s[n]**: Speak message number 'n' (e.g., /s1)
 * **ctrl+q**: Stop current speech playback
 
 ## Web Search Commands
-* **#web query**: Search for information
-* **#web query +domain.com**: Search with specific domain
-* **#webe query**: Enhanced web search with AI optimization
-* **#webe query +domain.com**: Enhanced domain-specific search
+* **/web query**: Search for information
+* **/web query +domain.com**: Search with specific domain
+* **/webe query**: Enhanced web search with AI optimization
+* **/webe query +domain.com**: Enhanced domain-specific search
 
 Enhanced search mode (🔍+) uses AI to optimize your search queries for better results. It adds context, clarity, and relevant details while maintaining a concise format.
 

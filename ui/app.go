@@ -177,8 +177,8 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return a, nil
 		case "enter":
 			input := a.input.Value()
-			if strings.HasPrefix(input, "#") {
-				input = strings.TrimPrefix(input, "#")
+			if strings.HasPrefix(input, "/") {
+				input = strings.TrimPrefix(input, "/")
 				if strings.HasPrefix(input, "o") {
 					// Handle message opening to default editor
 					if msgNum, err := strconv.Atoi(strings.TrimPrefix(input, "o")); err == nil {
@@ -820,6 +820,9 @@ func (a *App) generateTitle(userInput string) {
 			a.statusBar.SetConversationTitle(title)
 			// Update conversation title in database if we have a current conversation
 			if a.currentConversationID != "" {
+				if len(title) > 27 {
+					title = title[:27]
+				}
 				if err := a.db.UpdateConversationTitle(a.currentConversationID, title); err != nil {
 					fmt.Printf("Error updating conversation title: %v\n", err)
 				}
