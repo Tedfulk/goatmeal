@@ -139,7 +139,7 @@ func (m Message) View(width int) string {
 				if blockIndex < len(m.codeBlocks) {
 					blockNum := m.codeBlocks[blockIndex].Number
 					blockIndex++
-					return block + fmt.Sprintf("\n[#b%d]\n", blockNum)
+					return block + fmt.Sprintf("\n[/b%d]\n", blockNum)
 				}
 				return block
 			})
@@ -167,7 +167,7 @@ func (m Message) View(width int) string {
 				if blockIndex < len(m.codeBlocks) {
 					blockNum := m.codeBlocks[blockIndex].Number
 					blockIndex++
-					return block + fmt.Sprintf("\n[#b%d]\n", blockNum)
+					return block + fmt.Sprintf("\n[/b%d]\n", blockNum)
 				}
 				return block
 			})
