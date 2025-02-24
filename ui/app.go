@@ -817,12 +817,19 @@ func (a *App) generateTitle(userInput string) {
 		provider := providers.NewOpenAICompatibleProvider(cfg)
 		title, err := provider.SendMessage(context.Background(), userInput, prompts.GetTitleSystemPrompt(), "llama-3.3-70b-versatile")
 		if err == nil {
+			title = strings.Join(strings.Fields(strings.ReplaceAll(title, "\n", " ")), " ")
+			if len(title) > 27 {
+				lastSpace := strings.LastIndex(title[:27], " ")
+				if lastSpace == -1 {
+					title = title[:27]
+				} else {
+					title = title[:lastSpace]
+				}
+			}
+			
 			a.statusBar.SetConversationTitle(title)
 			// Update conversation title in database if we have a current conversation
 			if a.currentConversationID != "" {
-				if len(title) > 27 {
-					title = title[:27]
-				}
 				if err := a.db.UpdateConversationTitle(a.currentConversationID, title); err != nil {
 					fmt.Printf("Error updating conversation title: %v\n", err)
 				}
