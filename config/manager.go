@@ -210,14 +210,14 @@ func (m *Manager) SetSystemPrompts(prompts []SystemPrompt) error {
 
 // setDefaultConfig sets the default configuration values
 func setDefaultConfig() {
-	// Default API keys (empty)
 	viper.SetDefault("api_keys", map[string]string{
 		"groq":     "",
 		"openai":   "",
-		"anthropic":   "",
+		"anthropic": "",
 		"gemini":   "",
 		"deepseek": "",
 		"tavily":   "",
+		"ollama":   "",
 	})
 
 	// Default current selections

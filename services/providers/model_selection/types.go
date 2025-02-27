@@ -9,6 +9,7 @@ import (
 	"github.com/tedfulk/goatmeal/services/providers/deepseek"
 	"github.com/tedfulk/goatmeal/services/providers/gemini"
 	"github.com/tedfulk/goatmeal/services/providers/groq"
+	"github.com/tedfulk/goatmeal/services/providers/ollama"
 	"github.com/tedfulk/goatmeal/services/providers/openai"
 )
 
@@ -35,6 +36,8 @@ func FetchModels(provider, apiKey string) ([]string, error) {
 		p = anthropic.NewProvider(apiKey)
 	case "gemini":
 		p = gemini.NewProvider(apiKey)
+	case "ollama":
+		p = ollama.NewProvider(apiKey)
 	default:
 		return nil, fmt.Errorf("unsupported provider: %s", provider)
 	}

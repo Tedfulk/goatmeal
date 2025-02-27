@@ -209,6 +209,10 @@ func (m ModelSettings) View() string {
 	titleStyle := theme.BaseStyle.Title.
 		Foreground(theme.CurrentTheme.Primary.GetColor())
 
+	helpStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#666666")).
+		Italic(true).
+		MarginTop(1)
 	var content string
 	if m.showModels {
 		content = lipgloss.JoinVertical(
@@ -218,8 +222,9 @@ func (m ModelSettings) View() string {
 		)
 	} else {
 		content = lipgloss.JoinVertical(
-			lipgloss.Left,
+			lipgloss.Center,
 			titleStyle.Render("Select Provider"),
+			helpStyle.Render("Add a provider in API Key settings"),
 			m.providerList.View(),
 		)
 	}

@@ -18,6 +18,7 @@ import (
 	"github.com/tedfulk/goatmeal/services/providers"
 	"github.com/tedfulk/goatmeal/services/providers/anthropic"
 	"github.com/tedfulk/goatmeal/services/providers/gemini"
+	"github.com/tedfulk/goatmeal/services/providers/ollama"
 	"github.com/tedfulk/goatmeal/services/search"
 	"github.com/tedfulk/goatmeal/ui/theme"
 	"github.com/tedfulk/goatmeal/utils/editor"
@@ -467,10 +468,13 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						case "gemini":
 							provider := gemini.NewProvider(apiKey)
 							response, err = provider.SendMessage(context.Background(), fullPrompt, a.config.CurrentSystemPrompt, a.config.CurrentModel)
+						case "ollama":
+							provider := ollama.NewProvider(apiKey)
+							response, err = provider.SendMessage(context.Background(), fullPrompt, a.config.CurrentSystemPrompt, a.config.CurrentModel)
 						default:
 							cfg := providers.OpenAICompatibleConfig{
-								Name:    providerName,
-								APIKey:  apiKey,
+								Name:   providerName,
+								APIKey: apiKey,
 							}
 							provider := providers.NewOpenAICompatibleProvider(cfg)
 							response, err = provider.SendMessage(context.Background(), fullPrompt, a.config.CurrentSystemPrompt, a.config.CurrentModel)

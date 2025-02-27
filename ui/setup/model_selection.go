@@ -98,6 +98,16 @@ type fetchModelsMsg struct {
 // fetchModels fetches available models for the selected provider
 func fetchModels(provider, apiKey string) tea.Cmd {
 	return func() tea.Msg {
+		// Special handling for Ollama which doesn't require an API key
+		if provider == "ollama" {
+			models, err := model_selection.FetchModels(provider, "")
+			if err != nil {
+				return fetchModelsMsg{err: fmt.Errorf("error fetching Ollama models (is Ollama running?): %w", err)}
+			}
+			return fetchModelsMsg{models: models}
+		}
+
+		// Normal flow for other providers
 		models, err := model_selection.FetchModels(provider, apiKey)
 		if err != nil {
 			return fetchModelsMsg{err: fmt.Errorf("error fetching models: %w", err)}

@@ -9,9 +9,13 @@ import (
 
 // Provider represents an AI provider
 type Provider struct {
-	name    string
-	hasKey  bool
-	apiKey  string
+	name        string
+	hasKey      bool
+	apiKey      string
+	displayName string
+	description string
+	required    bool
+	keyName     string
 }
 
 // FilterValue implements list.Item interface
@@ -51,6 +55,13 @@ type ProviderList struct {
 // NewProviderList creates a new provider list
 func NewProviderList() ProviderList {
 	providers := []Provider{
+		{
+			name:        "ollama",
+			displayName: "Ollama",
+			description: "Local LLM server with various open-source models",
+			required:    false,
+			keyName:     "ollama",
+		},
 		{name: "openai"},
 		{name: "anthropic"},
 		{name: "gemini"},

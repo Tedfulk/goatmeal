@@ -12,6 +12,7 @@ https://github.com/user-attachments/assets/01bf6cda-39a6-4b41-97c1-fb7321bcd291
   - Gemini
   - Deepseek
   - Groq
+  - Ollama (local models)
 - **Web Search Integration**
   - Tavily search with domain filtering
   - Markdown-formatted search results
@@ -45,6 +46,14 @@ go install github.com/tedfulk/goatmeal@v1.2.13
 
 On first run, Goatmeal will guide you through the setup process. You'll need to provide API keys for the services you want to use.
 
+### Ollama Setup
+
+To use Ollama with Goatmeal:
+1. Install Ollama from [ollama.ai](https://ollama.ai)
+2. Start the Ollama server locally
+3. No API key is required - Goatmeal will automatically connect to Ollama at `http://localhost:11434`
+4. Select "ollama" as your provider in Goatmeal's settings to see available models
+
 Configuration is stored in `~/.config/goatmeal/config.yaml`:
 
 ```yaml
@@ -55,6 +64,7 @@ api_keys:
   deepseek: your-api-key
   groq: your-api-key
   tavily: your-api-key
+  ollama: ollama # goatmeal will put a default api key in
 current_model: llama-3.3-70b-versatile
 current_provider: groq
 current_system_prompt: You are a helpful AI assistant.
