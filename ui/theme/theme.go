@@ -112,8 +112,8 @@ var DefaultTheme = Theme{
 			Dark:  CompleteColor{TrueColor: "#7D56F4", ANSI256: "99", ANSI: "5"},
 		},
 		AIText: CompleteAdaptiveColor{
-			Light: CompleteColor{TrueColor: "#FFFFFF", ANSI256: "231", ANSI: "15"},
-			Dark:  CompleteColor{TrueColor: "#FFFFFF", ANSI256: "231", ANSI: "15"},
+			Light: CompleteColor{TrueColor: "#7D56F4", ANSI256: "99", ANSI: "5"},
+			Dark:  CompleteColor{TrueColor: "#7D56F4", ANSI256: "99", ANSI: "5"},
 		},
 		Timestamp: CompleteAdaptiveColor{
 			Light: CompleteColor{TrueColor: "#666666", ANSI256: "241", ANSI: "8"},
@@ -214,8 +214,8 @@ var NordTheme = Theme{
 			Dark:  CompleteColor{TrueColor: "#88C0D0", ANSI256: "110", ANSI: "4"},
 		},
 		AIText: CompleteAdaptiveColor{
-			Light: CompleteColor{TrueColor: "#ECEFF4", ANSI256: "231", ANSI: "15"},
-			Dark:  CompleteColor{TrueColor: "#ECEFF4", ANSI256: "231", ANSI: "15"},
+			Light: CompleteColor{TrueColor: "#88C0D0", ANSI256: "110", ANSI: "4"},
+			Dark:  CompleteColor{TrueColor: "#88C0D0", ANSI256: "110", ANSI: "4"},
 		},
 		Timestamp: CompleteAdaptiveColor{
 			Light: CompleteColor{TrueColor: "#4C566A", ANSI256: "59", ANSI: "8"},
@@ -224,11 +224,6 @@ var NordTheme = Theme{
 	},
 }
 
-// For brevity, I'll add just these three themes for now. You can add the rest following the same pattern.
-// The other themes (SolarizedDark, Monokai, TokyoNight, GruvboxDark, Catppuccin, OneDark, GitHubDark)
-// can be added following the same structure with their respective color schemes.
-
-// GetColor returns the appropriate color string based on the terminal's capabilities
 func (c CompleteAdaptiveColor) GetColor() lipgloss.Color {
 	// For now, we'll just use the dark variant's true color
 	// TODO: Implement proper light/dark detection and color profile handling
@@ -279,8 +274,8 @@ var MatrixClassicTheme = Theme{
 			Dark:  CompleteColor{TrueColor: "#00FF00", ANSI256: "46", ANSI: "2"},
 		},
 		AIText: CompleteAdaptiveColor{
-			Light: CompleteColor{TrueColor: "#5FFF5F", ANSI256: "83", ANSI: "2"},
-			Dark:  CompleteColor{TrueColor: "#5FFF5F", ANSI256: "83", ANSI: "2"},
+			Light: CompleteColor{TrueColor: "#00FF00", ANSI256: "46", ANSI: "2"},
+			Dark:  CompleteColor{TrueColor: "#00FF00", ANSI256: "46", ANSI: "2"},
 		},
 		Timestamp: CompleteAdaptiveColor{
 			Light: CompleteColor{TrueColor: "#003B00", ANSI256: "22", ANSI: "2"},
@@ -381,8 +376,8 @@ var CyberpunkNeonTheme = Theme{
 			Dark:  CompleteColor{TrueColor: "#FF00FF", ANSI256: "201", ANSI: "5"},
 		},
 		AIText: CompleteAdaptiveColor{
-			Light: CompleteColor{TrueColor: "#00FFFF", ANSI256: "51", ANSI: "6"},
-			Dark:  CompleteColor{TrueColor: "#00FFFF", ANSI256: "51", ANSI: "6"},
+			Light: CompleteColor{TrueColor: "#FF00FF", ANSI256: "201", ANSI: "5"},
+			Dark:  CompleteColor{TrueColor: "#FF00FF", ANSI256: "201", ANSI: "5"},
 		},
 		Timestamp: CompleteAdaptiveColor{
 			Light: CompleteColor{TrueColor: "#800080", ANSI256: "90", ANSI: "5"},

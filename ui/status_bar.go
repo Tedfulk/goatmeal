@@ -99,7 +99,7 @@ func (s *StatusBar) View() string {
 	titleStyle := lipgloss.NewStyle().
 		Foreground(theme.CurrentTheme.StatusBar.Title.GetColor()).
 		Align(lipgloss.Center).
-		Width((s.width / 2))
+		Width((s.width / 2) + 25)
 
 	// Create the model style
 	modelStyle := lipgloss.NewStyle().

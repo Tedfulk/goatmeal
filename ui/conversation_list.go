@@ -8,6 +8,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -58,6 +59,10 @@ var DefaultKeyMap = KeyMap{
 		key.WithKeys("ctrl+e"),
 		key.WithHelp("ctrl+e", "export conversation"),
 	),
+}
+
+type CopyMessageMsg struct {
+	content string
 }
 
 type ConversationListView struct {
@@ -174,26 +179,32 @@ func (c *ConversationListView) loadMessages(conversationID string) {
 	if len(c.messages) > 0 {
 		for _, msg := range c.messages {
 			var prefix string
+			var prefixColor lipgloss.Color
 			if msg.Role == "user" {
-				prefix = lipgloss.NewStyle().
-					Foreground(theme.CurrentTheme.Message.UserText.GetColor()).
-						Render(c.config.Settings.Username)
+				prefixColor = theme.CurrentTheme.Message.UserText.GetColor()
+				prefix = c.config.Settings.Username
 			} else if msg.Role == "search" {
-				prefix = lipgloss.NewStyle().
-					Foreground(theme.CurrentTheme.Message.AIText.GetColor()).
-						Render("Tavily")
+				prefixColor = theme.CurrentTheme.Message.AIText.GetColor()
+				prefix = "Tavily"
 			} else {
 				// Color model name with AIText color
-				modelName := "AI"
+				prefixColor = theme.CurrentTheme.Message.AIText.GetColor()
 				if currentConv.Provider == "tavily" {
-					modelName = "Tavily"
+					prefix = "Tavily"
 				} else {
-					modelName = models.StripModelsPrefix(currentConv.Model)
+					prefix = models.StripModelsPrefix(currentConv.Model)
 				}
-				prefix = lipgloss.NewStyle().
-					Foreground(theme.CurrentTheme.Message.AIText.GetColor()).
-						Render(modelName)
 			}
+
+			// Create the prefix with copy button
+			prefixStyle := lipgloss.NewStyle().
+				Foreground(prefixColor)
+			
+			copyButton := lipgloss.NewStyle().
+				Foreground(theme.CurrentTheme.Primary.GetColor()).
+				Render(" 📋")
+
+			prefixWithButton := prefixStyle.Render(prefix) + copyButton
 
 			// Render message content with Glamour if enabled
 			msgContent := msg.Content
@@ -203,7 +214,7 @@ func (c *ConversationListView) loadMessages(conversationID string) {
 				}
 			}
 
-			content += prefix + "\n" + msgContent + "\n\n"
+			content += prefixWithButton + "\n" + msgContent + "\n\n"
 		}
 	} else {
 		content = "Select a conversation to view messages"
@@ -314,6 +325,29 @@ func (c *ConversationListView) Update(msg tea.Msg) (*ConversationListView, tea.C
 					c.viewport.LineUp(1)
 				} else if msg.Button == tea.MouseButtonWheelDown {
 					c.viewport.LineDown(1)
+				} else if msg.Button == tea.MouseButtonLeft {
+					// Check if click is on a copy button
+					content := c.viewport.View()
+					lines := strings.Split(content, "\n")
+					clickedLine := msg.Y
+					if clickedLine < len(lines) {
+						line := lines[clickedLine]
+						if strings.Contains(line, "📋") {
+							// Find the corresponding message
+							msgIndex := 0
+							for i := 0; i < clickedLine; i++ {
+								if strings.Contains(lines[i], "📋") {
+									msgIndex++
+								}
+							}
+							if msgIndex < len(c.messages) {
+								msg := c.messages[msgIndex]
+								if err := clipboard.WriteAll(msg.Content); err != nil {
+									fmt.Printf("Error copying to clipboard: %v\n", err)
+								}
+							}
+						}
+					}
 				}
 			}
 		}
