@@ -39,7 +39,7 @@ https://github.com/user-attachments/assets/01bf6cda-39a6-4b41-97c1-fb7321bcd291
 ## Installation
 
 ```bash
-go install github.com/tedfulk/goatmeal@v1.2.14
+go install github.com/tedfulk/goatmeal@v1.2.15
 ```
 
 ## Configuration
@@ -49,6 +49,7 @@ On first run, Goatmeal will guide you through the setup process. You'll need to 
 ### Ollama Setup
 
 To use Ollama with Goatmeal:
+
 1. Install Ollama from [ollama.ai](https://ollama.ai)
 2. Start the Ollama server locally
 3. No API key is required - Goatmeal will automatically connect to Ollama at `http://localhost:11434`
@@ -69,14 +70,14 @@ current_model: llama-3.3-70b-versatile
 current_provider: groq
 current_system_prompt: You are a helpful AI assistant.
 settings:
-    outputglamour: true
-    conversationretention: 30
-    theme:
-        name: Default
-    username: teddy
+  outputglamour: true
+  conversationretention: 30
+  theme:
+    name: Default
+  username: teddy
 system_prompts:
-    - content: You are a helpful AI assistant.
-      title: General
+  - content: You are a helpful AI assistant.
+    title: General
 ```
 
 ## Usage
@@ -149,6 +150,7 @@ Text-to-speech is supported out of the box using the built-in `say` command.
 When using Goatmeal, there are two ways to select and copy text:
 
 1. **Using Option Key (Recommended)**:
+
    - Hold the Option (⌥) key while selecting text
    - This temporarily disables mouse reporting without affecting app functionality
    - Release Option to restore normal mouse interaction
