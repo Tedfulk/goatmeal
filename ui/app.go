@@ -252,44 +252,66 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 							}
 						}
 					}
-				} else if strings.HasPrefix(input, "web") || strings.HasPrefix(input, "webe") {
-					// Handle web search
-					isEnhanced := strings.HasPrefix(input, "webe")
+				} else if strings.HasPrefix(input, "web") || strings.HasPrefix(input, "webe") || strings.HasPrefix(input, "epq") {
+					// Handle web search and programming query enhancement
 					var query string
-					if isEnhanced {
+					var isEnhanced bool
+					var enhanceType search.EnhanceType
+					
+					if strings.HasPrefix(input, "webe") {
 						query = strings.TrimSpace(strings.TrimPrefix(input, "webe"))
+						isEnhanced = true
+						enhanceType = search.WebSearch
+					} else if strings.HasPrefix(input, "epq") {
+						query = strings.TrimSpace(strings.TrimPrefix(input, "epq"))
+						isEnhanced = true
+						enhanceType = search.Programming
 					} else {
 						query = strings.TrimSpace(strings.TrimPrefix(input, "web"))
+						enhanceType = search.WebSearch
 					}
 
 					if query != "" {
-						// Check for domain inclusions (marked with +)
+						// Check for domain inclusions (marked with +) for web searches
 						var domains []string
-						parts := strings.Split(query, "+")
-						query = strings.TrimSpace(parts[0])
-						
-						// If there are additional parts, they are domains
-						if len(parts) > 1 {
-							for _, domain := range parts[1:] {
-								domain = strings.TrimSpace(domain)
-								if domain != "" {
-									domains = append(domains, domain)
+						if enhanceType == search.WebSearch {
+							parts := strings.Split(query, "+")
+							query = strings.TrimSpace(parts[0])
+							
+							// If there are additional parts, they are domains
+							if len(parts) > 1 {
+								for _, domain := range parts[1:] {
+									domain = strings.TrimSpace(domain)
+									if domain != "" {
+										domains = append(domains, domain)
+									}
 								}
 							}
 						}
 
-						// Create search message prefix based on mode
-						searchMsg := fmt.Sprintf("🔍 Searching for: %s", query)
+						// Create message prefix based on mode
+						var searchMsg string
+						if enhanceType == search.WebSearch {
+							searchMsg = fmt.Sprintf("🔍 Searching for: %s", query)
+						} else {
+							searchMsg = fmt.Sprintf("💻 Enhancing programming query: %s", query)
+						}
+
 						if isEnhanced {
-							enhanced, err := a.enhanceSearchQuery(query)
+							enhanced, err := a.enhanceSearchQuery(query, enhanceType)
 							if err != nil {
 								a.statusBar.SetError(fmt.Sprintf("Failed to enhance query: %v", err))
 								a.input.Reset()
 								return a, nil
 							}
 							query = enhanced
-							searchMsg = fmt.Sprintf("🔍+ Enhanced search: %s", query)
+							if enhanceType == search.WebSearch {
+								searchMsg = fmt.Sprintf("🔍+ Enhanced search: %s", query)
+							} else {
+								searchMsg = fmt.Sprintf("💻+ Enhanced programming query:\n%s", query)
+							}
 						}
+						
 						if len(domains) > 0 {
 							searchMsg += fmt.Sprintf("\nDomains: %s", strings.Join(domains, ", "))
 						}
@@ -308,99 +330,227 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						a.updateConversationView()
 						a.input.Reset()
 
-						// Start spinner
-						a.statusBar.SetLoading(true)
+						// For web searches, continue with search operation
+						if enhanceType == search.WebSearch {
+							// Start spinner
+							a.statusBar.SetLoading(true)
 
-						// Perform search in goroutine
-						go func() {
-							defer func() {
-								a.statusBar.SetLoading(false)
+							// Perform search in goroutine
+							go func() {
+								defer func() {
+									a.statusBar.SetLoading(false)
+								}()
+
+								tavilyClient := search.NewClient(a.config.APIKeys["tavily"])
+								searchResp, err := tavilyClient.Search(query, domains)
+								
+								var response string
+								if err != nil {
+									response = fmt.Sprintf("Error performing search: %v", err)
+								} else {
+									// Format search results
+									var sb strings.Builder
+									
+									// If there's an answer, show it first
+									if searchResp.Answer != nil {
+										sb.WriteString("### Answer Summary\n\n")
+										sb.WriteString(fmt.Sprintf("%v", searchResp.Answer))
+										sb.WriteString("\n\n---\n\n")
+									}
+									
+									sb.WriteString("### Search Results\n\n")
+									
+									// Show individual results
+									for _, result := range searchResp.Results {
+										sb.WriteString(fmt.Sprintf("**[%s](%s)**\n\n%s\n\n---\n\n", 
+											result.Title, result.URL, result.Content))
+									}
+									response = sb.String()
+								}
+								
+								// Create and store search result message
+								searchMsg := NewMessage(a.nextMessageID, SearchMessage, response, a.config, a.getNextCodeBlockNumber)
+								a.messages = append(a.messages, searchMsg)
+								a.nextMessageID++
+								
+								// Save to database if we have a current conversation
+								if a.currentConversationID != "" {
+									if len(a.messages) == 2 { // First user message + first search response
+										// Save the entire conversation
+										conv := &database.Conversation{
+											ID:        a.currentConversationID,
+											Title:     a.statusBar.conversationTitle,
+											Provider:  "tavily",
+											Model:     "search",
+											CreatedAt: time.Now(),
+											UpdatedAt: time.Now(),
+											Messages:  make([]database.Message, len(a.messages)),
+										}
+
+										// Convert UI messages to database messages
+										for i, msg := range a.messages {
+											role := "user"
+											if msg.Type == SearchMessage {
+												role = "search"
+											}
+											conv.Messages[i] = database.Message{
+												ID:             uuid.New().String(),
+												ConversationID: conv.ID,
+												Role:           role,
+												Content:        msg.Content,
+												CreatedAt:      msg.Timestamp,
+											}
+										}
+
+										if err := a.db.SaveConversation(conv); err != nil {
+											fmt.Printf("Error saving conversation: %v\n", err)
+										}
+										a.refreshConversationList()
+									} else {
+										// Add just the new message for subsequent messages
+										dbMsg := &database.Message{
+											ID:             uuid.New().String(),
+											ConversationID: a.currentConversationID,
+											Role:           "search",
+											Content:        response,
+											CreatedAt:      time.Now(),
+										}
+										if err := a.db.AddMessage(dbMsg); err != nil {
+											fmt.Printf("Error adding search message: %v\n", err)
+										}
+									}
+								}
+								
+								a.updateConversationView()
+							}()
+							
+							return a, a.statusBar.spinner.Tick
+						}
+						
+						// For programming queries or regular messages, handle them together
+						if input != "" || enhanceType == search.Programming {
+							// Start spinner before sending message
+							a.statusBar.SetLoading(true)
+							
+							go func() {
+								defer func() {
+									a.statusBar.SetLoading(false)
+								}()
+
+								// Get provider instance based on current provider
+								providerName := strings.ToLower(a.config.CurrentProvider)
+								apiKey := a.config.APIKeys[providerName]
+
+								var response string
+								var err error
+
+								if apiKey == "" {
+									response = fmt.Sprintf("Error: Please provide an API key for %s in the settings", a.config.CurrentProvider)
+								} else {
+									// Build conversation history
+									var conversationHistory []string
+									for _, msg := range a.messages[:len(a.messages)-1] { // Exclude the message we just added
+										if msg.Type == UserMessage {
+											conversationHistory = append(conversationHistory, "User: "+msg.Content)
+										} else if msg.Type == ProviderMessage {
+											conversationHistory = append(conversationHistory, "Assistant: "+msg.Content)
+										}
+									}
+									
+									// Add current message
+									messageToSend := input
+									if enhanceType == search.Programming {
+										messageToSend = query
+									}
+									conversationHistory = append(conversationHistory, "User: "+messageToSend)
+									
+									// Join history with newlines
+									fullPrompt := strings.Join(conversationHistory, "\n")
+
+									switch providerName {
+									case "anthropic":
+										provider := anthropic.NewProvider(apiKey)
+										response, err = provider.SendMessage(context.Background(), fullPrompt, a.config.CurrentSystemPrompt, a.config.CurrentModel)
+									case "gemini":
+										provider := gemini.NewProvider(apiKey)
+										response, err = provider.SendMessage(context.Background(), fullPrompt, a.config.CurrentSystemPrompt, a.config.CurrentModel)
+									case "ollama":
+										provider := ollama.NewProvider(apiKey)
+										response, err = provider.SendMessage(context.Background(), fullPrompt, a.config.CurrentSystemPrompt, a.config.CurrentModel)
+									default:
+										cfg := providers.OpenAICompatibleConfig{
+											Name:   providerName,
+											APIKey: apiKey,
+										}
+										provider := providers.NewOpenAICompatibleProvider(cfg)
+										response, err = provider.SendMessage(context.Background(), fullPrompt, a.config.CurrentSystemPrompt, a.config.CurrentModel)
+									}
+
+									if err != nil {
+										response = "Error: " + err.Error()
+									}
+								}
+
+								// Create and store provider message
+								providerMsg := NewMessage(a.nextMessageID, ProviderMessage, response, a.config, a.getNextCodeBlockNumber)
+								a.messages = append(a.messages, providerMsg)
+								a.nextMessageID++
+
+								// Save to database if we have a current conversation
+								if a.currentConversationID != "" {
+									if len(a.messages) == 2 { // First user message + first AI response
+										// Save the entire conversation
+										conv := &database.Conversation{
+											ID:        a.currentConversationID,
+											Title:     a.statusBar.conversationTitle,
+											Provider:  a.config.CurrentProvider,
+											Model:     a.config.CurrentModel,
+											CreatedAt: time.Now(),
+											UpdatedAt: time.Now(),
+											Messages:  make([]database.Message, len(a.messages)),
+										}
+
+										// Convert UI messages to database messages
+										for i, msg := range a.messages {
+											role := "user"
+											if msg.Type == ProviderMessage {
+												role = "assistant"
+											}
+											conv.Messages[i] = database.Message{
+												ID:             uuid.New().String(),
+												ConversationID: conv.ID,
+												Role:           role,
+												Content:        msg.Content,
+												CreatedAt:      msg.Timestamp,
+											}
+										}
+
+										if err := a.db.SaveConversation(conv); err != nil {
+											fmt.Printf("Error saving conversation: %v\n", err)
+										}
+										a.refreshConversationList()
+									} else {
+										// Add just the new message for subsequent messages
+										dbMsg := &database.Message{
+											ID:             uuid.New().String(),
+											ConversationID: a.currentConversationID,
+											Role:           "assistant",
+											Content:        response,
+											CreatedAt:      time.Now(),
+										}
+										if err := a.db.AddMessage(dbMsg); err != nil {
+											fmt.Printf("Error adding message: %v\n", err)
+										}
+									}
+								}
+
+								a.updateConversationView()
 							}()
 
-							tavilyClient := search.NewClient(a.config.APIKeys["tavily"])
-							searchResp, err := tavilyClient.Search(query, domains)
-							
-							var response string
-							if err != nil {
-								response = fmt.Sprintf("Error performing search: %v", err)
-							} else {
-								// Format search results
-								var sb strings.Builder
-								
-								// If there's an answer, show it first
-								if searchResp.Answer != nil {
-									sb.WriteString("### Answer Summary\n\n")
-									sb.WriteString(fmt.Sprintf("%v", searchResp.Answer))
-									sb.WriteString("\n\n---\n\n")
-								}
-								
-								sb.WriteString("### Search Results\n\n")
-								
-								// Show individual results
-								for _, result := range searchResp.Results {
-									sb.WriteString(fmt.Sprintf("**[%s](%s)**\n\n%s\n\n---\n\n", 
-										result.Title, result.URL, result.Content))
-								}
-								response = sb.String()
-							}
-							
-							// Create and store search result message
-							searchMsg := NewMessage(a.nextMessageID, SearchMessage, response, a.config, a.getNextCodeBlockNumber)
-							a.messages = append(a.messages, searchMsg)
-							a.nextMessageID++
-							
-							// Save to database if we have a current conversation
-							if a.currentConversationID != "" {
-								if len(a.messages) == 2 { // First user message + first search response
-									// Save the entire conversation
-									conv := &database.Conversation{
-										ID:        a.currentConversationID,
-										Title:     a.statusBar.conversationTitle,
-										Provider:  "tavily",
-										Model:     "search",
-										CreatedAt: time.Now(),
-										UpdatedAt: time.Now(),
-										Messages:  make([]database.Message, len(a.messages)),
-									}
-
-									// Convert UI messages to database messages
-									for i, msg := range a.messages {
-										role := "user"
-										if msg.Type == SearchMessage {
-											role = "search"
-										}
-										conv.Messages[i] = database.Message{
-											ID:             uuid.New().String(),
-											ConversationID: conv.ID,
-											Role:           role,
-											Content:        msg.Content,
-											CreatedAt:      msg.Timestamp,
-										}
-									}
-
-									if err := a.db.SaveConversation(conv); err != nil {
-										fmt.Printf("Error saving conversation: %v\n", err)
-									}
-									a.refreshConversationList()
-								} else {
-									// Add just the new message for subsequent messages
-									dbMsg := &database.Message{
-										ID:             uuid.New().String(),
-										ConversationID: a.currentConversationID,
-										Role:           "search",
-										Content:        response,
-										CreatedAt:      time.Now(),
-									}
-									if err := a.db.AddMessage(dbMsg); err != nil {
-										fmt.Printf("Error adding search message: %v\n", err)
-									}
-								}
-							}
-							
-							a.updateConversationView()
-						}()
-
-						return a, a.statusBar.spinner.Tick
+							return a, a.statusBar.spinner.Tick
+						}
+						
+						return a, nil
 					}
 				}
 				a.input.Reset()
@@ -859,7 +1009,7 @@ func (a *App) getNextCodeBlockNumber() int {
 	return a.totalCodeBlocks
 }
 
-// Add this method to the App struct
-func (a *App) enhanceSearchQuery(query string) (string, error) {
-	return a.queryEnhancer.Enhance(query)
+// Update the enhanceSearchQuery method to accept the enhancement type
+func (a *App) enhanceSearchQuery(query string, enhanceType search.EnhanceType) (string, error) {
+	return a.queryEnhancer.Enhance(query, enhanceType)
 }

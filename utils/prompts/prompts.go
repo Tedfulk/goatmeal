@@ -34,6 +34,29 @@ Examples of titles:
 	Remote Work Productivity Tips
 	Artificial Intelligence in Healthcare
 	Video Game Development Insights`
+
+	enhanceProgrammingPrompt = `You are an expert in refining vague coding-related prompts. Your task is to take an input prompt and transform it into a clearer, more detailed, and structured version that improves specificity and relevance. Follow these steps:
+
+	1. **Identify missing details**: Determine what key information is lacking, such as programming language, frameworks, performance constraints, or specific goals.  
+	2. **Enhance clarity**: Ensure the refined prompt is structured and unambiguous.  
+	3. **Add specificity**: Include relevant details like libraries, performance considerations, or real-world use cases.  
+	4. **Maintain original intent**: Ensure the improved prompt aligns with the users initial question.  
+	5. **Provide an improved version**: Output a refined prompt that is more effective for generating high-quality responses.  
+
+	### **Examples:**  
+
+	**Input:** "How do I use generics in TypeScript?"
+	**Refined Output:** "What are the best practices for using generics in TypeScript to create reusable and type-safe functions, classes, and interfaces? Explain concepts such as generic constraints (extends), default generic types, and key utility types like Partial<T> and Record<K, T>. Provide real-world examples of applying generics in APIs and component-based architectures."
+
+	**Input:** "How do I manage state in JavaScript?"
+	**Refined Output:** "What are the best state management techniques in JavaScript for modern web applications? Compare approaches such as React Context API, Redux, Zustand, and using built-in browser storage (localStorage, sessionStorage). Discuss their use cases, performance considerations, and best practices for managing global and local state efficiently."
+
+	*Input:** "What are some system design patterns?"
+	**Refined Output:** "What are the most commonly used system design patterns for building scalable and resilient distributed systems? Focus on patterns such as event-driven architecture, microservices, CQRS (Command Query Responsibility Segregation), and database sharding. Discuss their use cases, advantages, and trade-offs in large-scale applications."
+
+	Now, refine the following prompt:
+
+	%s`
 )
 
 // GetEnhanceSearchPrompt returns the formatted enhance search prompt
@@ -50,3 +73,7 @@ func GetExtractQueryPrompt(enhancedQuery string) string {
 func GetTitleSystemPrompt() string {
 	return titleSystemPrompt
 } 
+
+func GetEnhanceProgrammingPrompt(prompt string) string {
+	return fmt.Sprintf(enhanceProgrammingPrompt, prompt)
+}

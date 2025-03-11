@@ -39,7 +39,7 @@ https://github.com/user-attachments/assets/01bf6cda-39a6-4b41-97c1-fb7321bcd291
 ## Installation
 
 ```bash
-go install github.com/tedfulk/goatmeal@v1.2.16
+go install github.com/tedfulk/goatmeal@v1.2.17
 ```
 
 ## Configuration
@@ -98,6 +98,7 @@ system_prompts:
 - `/web query +domain.com`: Search with specific domain
 - `/webe query`: Enhanced web search with AI optimization
 - `/webe query +domain.com`: Enhanced domain-specific search
+- `/epq`: Enhanced Programming query
 - `enter`: Send message
 - `/o[n]`: Open message number 'n' in editor (e.g., /o1)
 - `/c[n]`: Copy message number 'n' to clipboard (e.g., /c1)
@@ -116,6 +117,15 @@ Examples:
   - Gets transformed into a more specific query including location and time context
 - Domain-specific: `/webe python tutorials +python.org`
   - Enhanced query limited to python.org domain
+
+#### Enhanced Programming query
+
+The enhanced programming query mode (💻+) uses AI to optimize programming-related queries by adding specificity about languages, frameworks, and technical requirements.
+
+Examples:
+
+- Basic: `/epq how to build a web app with react and go`
+- Enhanced: `What is a step-by-step guide to building a scalable and efficient web application using React as the frontend framework and Go as the backend server? Consider a RESTful API architecture, focusing on best practices for setting up a new React project with Create React App, designing a robust API with Go's net/http package or a framework like Gin, and implementing authentication and authorization using JSON Web Tokens (JWT) or OAuth.`
 
 ### Conversation List
 

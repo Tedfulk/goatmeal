@@ -45,8 +45,11 @@ func NewHelpView() *HelpView {
 * **/web query +domain.com**: Search with specific domain
 * **/webe query**: Enhanced web search with AI optimization
 * **/webe query +domain.com**: Enhanced domain-specific search
+* **/epq query**: Enhanced programming query with AI optimization
 
 Enhanced search mode (🔍+) uses AI to optimize your search queries for better results. It adds context, clarity, and relevant details while maintaining a concise format.
+
+Enhanced programming query mode (💻+) uses AI to optimize programming-related queries by adding specificity about languages, frameworks, and technical requirements.
 
 ## Conversation List
 * **tab**: Switch focus between list and messages
