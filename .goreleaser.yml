@@ -14,7 +14,7 @@ builds:
     ignore:
       - goos: linux
         goarch: arm64
-    binary: suggest
+    binary: goatmeal
     ldflags:
       - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
 
