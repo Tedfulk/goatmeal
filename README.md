@@ -38,8 +38,17 @@ https://github.com/user-attachments/assets/01bf6cda-39a6-4b41-97c1-fb7321bcd291
 
 ## Installation
 
+### Using Homebrew (recommended)
+
 ```bash
-go install github.com/tedfulk/goatmeal@v1.2.17
+brew tap tedfulk/goatmeal
+brew install goatmeal
+```
+
+### Using Go Install
+
+```bash
+go install github.com/tedfulk/goatmeal@latest
 ```
 
 ## Configuration
